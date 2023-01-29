@@ -66,13 +66,13 @@ int main(int argc, char **argv) {
 
   // Begin an indefinite command input loop
   char   *cmd = NULL;
-  size_t  buflen;
+  size_t  buflen, s;
   ssize_t len;
   //   wordexp_t arglist;
   char  *opcode = NULL;
   char  *arg2   = NULL;
   glob_t paths;
-  char path[4096];
+  char   path[1024];
 
   // Loop forever accepting commands typed into stdin
   for (;;) {
@@ -113,16 +113,24 @@ int main(int argc, char **argv) {
         printf("Error matching filepath.\n");
         continue;
       }
+      // Iterate through the paths returned from glob search
       for (int i = 0; i < paths.gl_pathc; ++i) {
+        // Ignore if this path is a dir
+        s = strlen(paths.gl_pathv[i]);
+        if (paths.gl_pathv[i][s - 1] == '/')
+          continue;
         printf("\t[%d]: %s\n", i, paths.gl_pathv[i]);
-        // paths.
+        // TODO: Send command for get and recieve response
       }
+
+      globfree(&paths);
     } else if (0 == strcmp("put", opcode)) {
       printv("PUT");
       if (arg2 == NULL) {
         puts("Must provide a path argument to 'put' command.");
         continue;
       }
+      // TODO: Send file data to server in datagram chunks
     } else if (0 == strcmp("delete", opcode)) {
       printv("DELETE");
       if (arg2 == NULL) {
@@ -131,6 +139,7 @@ int main(int argc, char **argv) {
       }
     } else if (0 == strcmp("ls", opcode)) {
       printv("LS");
+      // TODO: Move this to the server code
       FILE *fp = popen("/bin/ls", "r");
       if (!fp)
         error("Failed to run the ls command. Is it in your path?", -2);
@@ -147,8 +156,6 @@ int main(int argc, char **argv) {
       printf("Invalid command.\n");
       continue;
     }
-
-    globfree(&paths);
   }
 
   return 0;
