@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
 #include <sys/types.h>
-// #include <wordexp.h>
+#include <netinet/in.h>
+#include <netdb.h> 
 #include <glob.h>
-
-#include "defines.h"
 
 /**
  * Print a message if VERBOSE is defined
@@ -47,13 +48,13 @@ int processCmdString(char *cmd, char **opcode, char **arg2) {
 }
 
 void printUsage() {
-  printf("Usage:\n\t./tcp_client address port\n");
-  printf("\tInput commands take the following format:\n");
-  printf("\t\tget\t[file_name]\n");
-  printf("\t\tput\t[file_name]\n");
-  printf("\t\tdelete\t[file_name]\n");
-  printf("\t\tls\n");
-  printf("\t\texit\n");
+  puts("Usage:\n\t./tcp_client <address> <port>");
+  puts("\tInput commands take the following format:");
+  puts("\t\tget\t<file_name>");
+  puts("\t\tput\t<file_name>");
+  puts("\t\tdelete\t<file_name>");
+  puts("\t\tls");
+  puts("\t\texit");
 }
 
 int main(int argc, char **argv) {
@@ -62,7 +63,34 @@ int main(int argc, char **argv) {
     error("Invalid number of arguments.\n", -1);
   }
 
+  int    sockfd, portno, n;
+  size_t serverlen;
+  struct sockaddr_in serveraddr;
+  struct hostent *server;
+  char *hostname;
+
   // TODO: More argument parsing for socket connection
+  hostname = argv[1];
+  portno   = atoi(argv[2]);
+
+  /* socket: create the socket */
+  sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (sockfd < 0)
+    error("ERROR opening socket");
+
+  /* gethostbyname: get the server's DNS entry */
+  server = gethostbyname(hostname);
+  if (server == NULL) {
+    fprintf(stderr, "ERROR, no such host as %s\n", hostname);
+    exit(0);
+  }
+
+  // Build the server address
+  serverlen = sizeof(serveraddr);
+  bzero((void *) &serveraddr, serverlen);
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_port = htons(portno);
+  bcopy((void *) &server->h_addr_list[0], (void *) &serveraddr.sin_addr, );
 
   // Begin an indefinite command input loop
   char   *cmd = NULL;
@@ -106,9 +134,14 @@ int main(int argc, char **argv) {
         puts("Must provide a path argument to 'get' command.");
         continue;
       }
-      // printf("arg2: %s\n", arg2);
-      // for (char *c = arg2; *c; c++)
-      //   printf("%2X\n", *c);
+      // TODO: Send command for get and recieve response
+    } else if (0 == strcmp("put", opcode)) {
+      printv("PUT");
+      if (arg2 == NULL) {
+        puts("Must provide a path argument to 'put' command.");
+        continue;
+      }
+      // TODO: Send file data to server in datagram chunks
       if (0 != glob(arg2, GLOB_MARK, NULL, &paths)) {
         printf("Error matching filepath.\n");
         continue;
@@ -120,17 +153,8 @@ int main(int argc, char **argv) {
         if (paths.gl_pathv[i][s - 1] == '/')
           continue;
         printf("\t[%d]: %s\n", i, paths.gl_pathv[i]);
-        // TODO: Send command for get and recieve response
       }
-
       globfree(&paths);
-    } else if (0 == strcmp("put", opcode)) {
-      printv("PUT");
-      if (arg2 == NULL) {
-        puts("Must provide a path argument to 'put' command.");
-        continue;
-      }
-      // TODO: Send file data to server in datagram chunks
     } else if (0 == strcmp("delete", opcode)) {
       printv("DELETE");
       if (arg2 == NULL) {
