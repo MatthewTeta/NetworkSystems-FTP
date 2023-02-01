@@ -1,12 +1,14 @@
+#include <glob.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <netinet/in.h>
-#include <netdb.h> 
-#include <glob.h>
+#include <unistd.h>
+
+#define BUFSZ 1024
 
 /**
  * Print a message if VERBOSE is defined
@@ -58,16 +60,17 @@ void printUsage() {
 }
 
 int main(int argc, char **argv) {
+  char buf[BUFSZ];
   if (argc != 3) {
     printUsage();
     error("Invalid number of arguments.\n", -1);
   }
 
-  int    sockfd, portno, n;
-  size_t serverlen;
+  int                sockfd, portno, n;
+  size_t             serverlen;
   struct sockaddr_in serveraddr;
-  struct hostent *server;
-  char *hostname;
+  struct hostent    *server;
+  char              *hostname;
 
   // TODO: More argument parsing for socket connection
   hostname = argv[1];
@@ -76,7 +79,7 @@ int main(int argc, char **argv) {
   /* socket: create the socket */
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
   if (sockfd < 0)
-    error("ERROR opening socket");
+    error("ERROR opening socket", -3);
 
   /* gethostbyname: get the server's DNS entry */
   server = gethostbyname(hostname);
@@ -85,12 +88,24 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
-  // Build the server address
-  serverlen = sizeof(serveraddr);
-  bzero((void *) &serveraddr, serverlen);
+  printf("Hostname:Port %s:%d\n", server->h_addr, portno);
+
+  // // Build the server address
+  // serverlen = sizeof(serveraddr);
+  // bzero((char *)&serveraddr, serverlen);
+  // // Set family and port
+  // serveraddr.sin_family = AF_INET;
+  // serveraddr.sin_port   = htons(portno);
+  // // Copy the address returned from DNS
+  // bcopy((char *)&server->h_addr, (char *)&serveraddr.sin_addr.s_addr,
+  //       (size_t)server->h_length);
+
+  /* build the server's Internet address */
+  bzero((char *)&serveraddr, sizeof(serveraddr));
   serveraddr.sin_family = AF_INET;
+  bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr,
+        server->h_length);
   serveraddr.sin_port = htons(portno);
-  bcopy((void *) &server->h_addr_list[0], (void *) &serveraddr.sin_addr, );
 
   // Begin an indefinite command input loop
   char   *cmd = NULL;
@@ -130,11 +145,26 @@ int main(int argc, char **argv) {
     // Parse based on opcode
     if (0 == strcmp("get", opcode)) {
       printv("GET");
+      printf("%s\n", cmd);
       if (arg2 == NULL) {
         puts("Must provide a path argument to 'get' command.");
         continue;
       }
       // TODO: Send command for get and recieve response
+      char *test = "hello";
+      n = sendto(sockfd, test, strlen(test), 0, &serveraddr, serverlen);
+      if (n < 0) {
+        puts("Error in sendto.");
+        // break;
+      }
+      printf("N = %d\n", n);
+      // break;
+
+      /* print the server's reply */
+      n = recvfrom(sockfd, buf, strlen(buf), 0, &serveraddr, &serverlen);
+      if (n < 0)
+        error("ERROR in recvfrom", -5);
+      printf("Echo from server: %s", buf);
     } else if (0 == strcmp("put", opcode)) {
       printv("PUT");
       if (arg2 == NULL) {

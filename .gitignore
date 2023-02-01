@@ -1,6 +1,8 @@
 ftp_client
+ftp_server
 udp
 cp
 ._udp
 *.tar
+*.o
 .vscode
