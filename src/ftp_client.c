@@ -66,49 +66,72 @@ int main(int argc, char **argv) {
     error("Invalid number of arguments.\n", -1);
   }
 
-  int                sockfd, portno, n;
-  size_t             serverlen;
+  int sockfd, n;
+  // size_t             serverlen;
   struct sockaddr_in serveraddr;
-  struct hostent    *server;
-  char              *hostname;
+  // struct hostent    *server;
+  char *hostname;
+  char *port;
 
   // TODO: More argument parsing for socket connection
   hostname = argv[1];
-  portno   = atoi(argv[2]);
+  portno   = argv[2];
 
   /* socket: create the socket */
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
   if (sockfd < 0)
     error("ERROR opening socket", -3);
 
-  /* gethostbyname: get the server's DNS entry */
-  server = gethostbyname(hostname);
-  if (server == NULL) {
-    fprintf(stderr, "ERROR, no such host as %s\n", hostname);
-    exit(0);
+  int              status;
+  struct addrinfo  hints;
+  struct addrinfo *servinfo;
+
+  bzero(&hints, sizeof(hints));
+  hints.ai_family   = AF_INET;
+  hints.ai_socktype = SOCK_DGRAM;
+  // Do this for the server
+  // hints.ai_flags    = AI_PASSIVE;
+
+  // Do DNS lookup with getaddrinfo()
+  if (0 != (status = getaddrinfo(hostname, port, &hints, &servinfo)))
+  {
+    fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
+    exit(-3);
   }
 
-  printf("Hostname:Port %s:%d\n", server->h_addr, portno);
+  // Do something
+  // struct addrinfo
 
-  // // Build the server address
-  // serverlen = sizeof(serveraddr);
-  // bzero((char *)&serveraddr, serverlen);
-  // // Set family and port
-  // serveraddr.sin_family = AF_INET;
-  // serveraddr.sin_port   = htons(portno);
-  // // Copy the address returned from DNS
-  // bcopy((char *)&server->h_addr, (char *)&serveraddr.sin_addr.s_addr,
-  //       (size_t)server->h_length);
+  freeaddrinfo(servinfo);
 
-  /* build the server's Internet address */
-  bzero((char *)&serveraddr, sizeof(serveraddr));
-  serveraddr.sin_family = AF_INET;
-  bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr,
-        server->h_length);
-  serveraddr.sin_port = htons(portno);
+    /* gethostbyname: get the server's DNS entry */
+    // server = gethostbyname(hostname);
+    // if (server == NULL) {
+    //   fprintf(stderr, "ERROR, no such host as %s\n", hostname);
+    //   exit(0);
+    // }
 
-  // Begin an indefinite command input loop
-  char   *cmd = NULL;
+    // printf("Hostname:Port %s:%d\n", server->h_addr, portno);
+
+    // // Build the server address
+    // serverlen = sizeof(serveraddr);
+    // bzero((char *)&serveraddr, serverlen);
+    // // Set family and port
+    // serveraddr.sin_family = AF_INET;
+    // serveraddr.sin_port   = htons(portno);
+    // // Copy the address returned from DNS
+    // bcopy((char *)&server->h_addr, (char *)&serveraddr.sin_addr.s_addr,
+    //       (size_t)server->h_length);
+
+    /* build the server's Internet address */
+    // bzero((char *)&serveraddr, sizeof(serveraddr));
+    // serveraddr.sin_family = AF_INET;
+    // bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr,
+    //       server->h_length);
+    // serveraddr.sin_port = htons(portno);
+
+    // Begin an indefinite command input loop
+    char *cmd = NULL;
   size_t  buflen, s;
   ssize_t len;
   //   wordexp_t arglist;
@@ -152,19 +175,19 @@ int main(int argc, char **argv) {
       }
       // TODO: Send command for get and recieve response
       char *test = "hello";
-      n = sendto(sockfd, test, strlen(test), 0, &serveraddr, serverlen);
-      if (n < 0) {
-        puts("Error in sendto.");
-        // break;
-      }
+      // n = sendto(sockfd, test, strlen(test), 0, &serveraddr, serverlen);
+      // if (n < 0) {
+      //   puts("Error in sendto.");
+      //   // break;
+      // }
       printf("N = %d\n", n);
       // break;
 
       /* print the server's reply */
-      n = recvfrom(sockfd, buf, strlen(buf), 0, &serveraddr, &serverlen);
-      if (n < 0)
-        error("ERROR in recvfrom", -5);
-      printf("Echo from server: %s", buf);
+      // n = recvfrom(sockfd, buf, strlen(buf), 0, &serveraddr, &serverlen);
+      // if (n < 0)
+      //   error("ERROR in recvfrom", -5);
+      // printf("Echo from server: %s", buf);
     } else if (0 == strcmp("put", opcode)) {
       printv("PUT");
       if (arg2 == NULL) {
