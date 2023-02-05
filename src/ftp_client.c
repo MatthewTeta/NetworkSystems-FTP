@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <glob.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -66,8 +67,8 @@ int main(int argc, char **argv) {
     error("Invalid number of arguments.\n", -1);
   }
 
-  int sockfd, n;
-  // size_t             serverlen;
+  int                sockfd, n, portno;
+  socklen_t          serverlen;
   struct sockaddr_in serveraddr;
   // struct hostent    *server;
   char *hostname;
@@ -75,7 +76,11 @@ int main(int argc, char **argv) {
 
   // TODO: More argument parsing for socket connection
   hostname = argv[1];
-  portno   = argv[2];
+  port     = argv[2];
+  portno   = atoi(port);
+  if (portno == 0) {
+    error("Invalid port given as argument", -1);
+  }
 
   /* socket: create the socket */
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -89,49 +94,40 @@ int main(int argc, char **argv) {
   bzero(&hints, sizeof(hints));
   hints.ai_family   = AF_INET;
   hints.ai_socktype = SOCK_DGRAM;
+  hints.ai_protocol = IPPROTO_UDP;
   // Do this for the server
   // hints.ai_flags    = AI_PASSIVE;
 
   // Do DNS lookup with getaddrinfo()
-  if (0 != (status = getaddrinfo(hostname, port, &hints, &servinfo)))
-  {
+  if (0 != (status = getaddrinfo(hostname, port, &hints, &servinfo))) {
     fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
     exit(-3);
   }
 
   // Do something
-  // struct addrinfo
+  // Check that there is at least 1 result
+  if (servinfo == NULL) {
+    fprintf(stderr, "No address found for hostname: %s\n", hostname);
+    exit(-4);
+  }
+
+  // Convert packed address to presentation format and print
+  char                ipstr[INET_ADDRSTRLEN];
+  struct sockaddr_in *sockaddr = (struct sockaddr_in *)servinfo->ai_addr;
+  inet_ntop(servinfo->ai_family, &(sockaddr->sin_addr), ipstr, sizeof(ipstr));
+  printf("IP From DNS: %s\n", ipstr);
+
+  // Populate struct sockaddr_in serveraddr; used for sendto
+  bzero(&serveraddr, sizeof(struct sockaddr_in));
+  serveraddr.sin_family = servinfo->ai_family; // Should be AF_INET
+  memcpy(&serveraddr.sin_addr, &sockaddr->sin_addr,
+         sizeof(struct in_addr)); // Result from DNS lookup
+  serveraddr.sin_port = htons(portno);
 
   freeaddrinfo(servinfo);
 
-    /* gethostbyname: get the server's DNS entry */
-    // server = gethostbyname(hostname);
-    // if (server == NULL) {
-    //   fprintf(stderr, "ERROR, no such host as %s\n", hostname);
-    //   exit(0);
-    // }
-
-    // printf("Hostname:Port %s:%d\n", server->h_addr, portno);
-
-    // // Build the server address
-    // serverlen = sizeof(serveraddr);
-    // bzero((char *)&serveraddr, serverlen);
-    // // Set family and port
-    // serveraddr.sin_family = AF_INET;
-    // serveraddr.sin_port   = htons(portno);
-    // // Copy the address returned from DNS
-    // bcopy((char *)&server->h_addr, (char *)&serveraddr.sin_addr.s_addr,
-    //       (size_t)server->h_length);
-
-    /* build the server's Internet address */
-    // bzero((char *)&serveraddr, sizeof(serveraddr));
-    // serveraddr.sin_family = AF_INET;
-    // bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr,
-    //       server->h_length);
-    // serveraddr.sin_port = htons(portno);
-
-    // Begin an indefinite command input loop
-    char *cmd = NULL;
+  // Begin an indefinite command input loop
+  char   *cmd = NULL;
   size_t  buflen, s;
   ssize_t len;
   //   wordexp_t arglist;
@@ -145,24 +141,8 @@ int main(int argc, char **argv) {
     printf("> ");
     if ((len = getline(&cmd, &buflen, stdin)) <= 0)
       continue;
-    // Parse command
-    // size_t s = strlen(cmd);
-    // if (1 != sscanf(cmd, "%m[a-z]", &opcode)) {
-    //   printf("Invalid command.\n");
-    //   continue;
-    // }
-    // Update command pointer to read the second argument (a little jenky but
-    // ok)
-    // if (s > strlen(opcode)) {
-    //   printv("TEST");
-    //   cmd_argc = 2;
-    //   cmd += strlen(opcode) + 1;
-    //   // Remove the trailing newline for globbing
-    //   s = strlen(cmd);
-    //   if (s && (cmd[s - 1] == '\n'))
-    //     cmd[--s] = 0;
-    // }
 
+    // Parse command
     processCmdString(cmd, &opcode, &arg2);
 
     // Parse based on opcode
@@ -174,20 +154,26 @@ int main(int argc, char **argv) {
         continue;
       }
       // TODO: Send command for get and recieve response
-      char *test = "hello";
-      // n = sendto(sockfd, test, strlen(test), 0, &serveraddr, serverlen);
-      // if (n < 0) {
-      //   puts("Error in sendto.");
-      //   // break;
-      // }
+      n = sendto(sockfd, arg2, strlen(arg2), 0,
+                 (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
+      if (n < 0) {
+        puts("Error in sendto.");
+        // break;
+      }
       printf("N = %d\n", n);
       // break;
 
       /* print the server's reply */
-      // n = recvfrom(sockfd, buf, strlen(buf), 0, &serveraddr, &serverlen);
-      // if (n < 0)
-      //   error("ERROR in recvfrom", -5);
-      // printf("Echo from server: %s", buf);
+      serverlen = sizeof(serveraddr);
+      // We are assuming only one server, so we don't really need to check the
+      // information stored into the serveraddr
+      while (0 < (n = recvfrom(sockfd, buf, strlen(buf), 0,
+                               (struct sockaddr *)(&serveraddr), &serverlen))) {
+        printf("Echo from server: %s", buf);
+        bzero(buf, strlen(buf));
+      }
+      if (n < 0)
+        error("ERROR in recvfrom", -5);
     } else if (0 == strcmp("put", opcode)) {
       printv("PUT");
       if (arg2 == NULL) {
@@ -200,7 +186,7 @@ int main(int argc, char **argv) {
         continue;
       }
       // Iterate through the paths returned from glob search
-      for (int i = 0; i < paths.gl_pathc; ++i) {
+      for (unsigned int i = 0; i < paths.gl_pathc; ++i) {
         // Ignore if this path is a dir
         s = strlen(paths.gl_pathv[i]);
         if (paths.gl_pathv[i][s - 1] == '/')
