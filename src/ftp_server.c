@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <glob.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -7,7 +8,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 
 #define BUFSIZE 1024
 
@@ -31,7 +31,7 @@ void error(char *msg, int code) {
 int main(int argc, char **argv) {
   int                sockfd;       /* socket */
   int                portno;       /* port to listen on */
-  int                clientlen;    /* byte size of client's address */
+  socklen_t          clientlen;    /* byte size of client's address */
   struct sockaddr_in serveraddr;   /* server's addr */
   struct sockaddr_in clientaddr;   /* client addr */
   struct hostent    *hostp;        /* client host info */
@@ -105,13 +105,14 @@ int main(int argc, char **argv) {
     if (hostaddrp == NULL)
       error("ERROR on inet_ntoa\n", -3);
     printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
-    printf("server received %d/%d bytes: %s\n", strlen(buf), n, buf);
+    printf("server received %lu/%d bytes: %s\n", strlen(buf), n, buf);
 
     /*
      * sendto: echo the input back to the client
      */
-    n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&clientaddr,
-               clientlen);
+    // while (1)
+    // n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&clientaddr,
+    //            clientlen);
     if (n < 0)
       error("ERROR in sendto", -3);
   }

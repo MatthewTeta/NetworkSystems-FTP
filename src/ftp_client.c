@@ -2,12 +2,15 @@
 #include <glob.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include "ftp_protocol.h"
 
 #define BUFSZ 1024
 
@@ -168,15 +171,42 @@ int main(int argc, char **argv) {
       printf("serverlen: %u\n", serverlen);
       // We are assuming only one server, so we don't really need to check the
       // information stored into the serveraddr
-      while (0 < (n = recvfrom(sockfd, buf, strlen(buf), 0,
-                               (struct sockaddr *)(&serveraddr), &serverlen))) {
-        printf("serverlen: %u\n", serverlen);
-        printf("Echo from server: %s", buf);
-        bzero(buf, strlen(buf));
+      while (1) {
+        puts("LOOP");
+        // Poll to allow for a timeout
+        short         revents = 0;
+        struct pollfd fds     = {
+                .fd      = sockfd,
+                .events  = POLLIN,
+                .revents = revents,
+        };
+        int rv = poll(&fds, 1, FTP_TIMEOUT_MS);
+        if (rv < 0) {
+          error("Polling error", -6);
+        } else if (rv == 0) {
+          puts("Timeout occured from poll");
+          break;
+        } else {
+          // Event happened
+          puts("Event happened");
+          if (revents & (POLLERR | POLLNVAL)) {
+            error("There was an error with the file descriptor when polling",
+                  -6);
+          }
+          // There is data to be read from the pipe
+          bzero(buf, BUFSZ);
+          int nrec = recvfrom(sockfd, buf, BUFSZ, 0,
+                              (struct sockaddr *)(&serveraddr), &serverlen);
+          printf("nrec: %d\n", nrec);
+          if (nrec < 0)
+            error("ERROR in recvfrom", -5);
+          printf("serverlen: %u\n", serverlen);
+          printf("Echo from server: %s", buf);
+          bzero(buf, strlen(buf));
+          if (nrec == n)
+            break;
+        }
       }
-      printf("n: %d\n", n);
-      if (n < 0)
-        error("ERROR in recvfrom", -5);
     } else if (0 == strcmp("put", opcode)) {
       printv("PUT");
       if (arg2 == NULL) {
