@@ -165,13 +165,16 @@ int main(int argc, char **argv) {
 
       /* print the server's reply */
       serverlen = sizeof(serveraddr);
+      printf("serverlen: %u\n", serverlen);
       // We are assuming only one server, so we don't really need to check the
       // information stored into the serveraddr
       while (0 < (n = recvfrom(sockfd, buf, strlen(buf), 0,
                                (struct sockaddr *)(&serveraddr), &serverlen))) {
+        printf("serverlen: %u\n", serverlen);
         printf("Echo from server: %s", buf);
         bzero(buf, strlen(buf));
       }
+      printf("n: %d\n", n);
       if (n < 0)
         error("ERROR in recvfrom", -5);
     } else if (0 == strcmp("put", opcode)) {

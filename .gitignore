@@ -1,6 +1,6 @@
 ftp_client
 ftp_server
-udp
+udp*
 cp
 ._udp
 *.tar
