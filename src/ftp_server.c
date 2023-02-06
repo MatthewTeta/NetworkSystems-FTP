@@ -31,16 +31,17 @@ void error(char *msg, int code) {
 }
 
 int main(int argc, char **argv) {
-  int                sockfd;       /* socket */
-  int                portno;       /* port to listen on */
-  socklen_t          clientlen;    /* byte size of client's address */
-  struct sockaddr_in serveraddr;   /* server's addr */
-  struct sockaddr_in clientaddr;   /* client addr */
-  struct hostent    *hostp;        /* client host info */
-  char               buf[BUFSIZE]; /* message buf */
-  char              *hostaddrp;    /* dotted decimal host addr string */
-  int                optval;       /* flag value for setsockopt */
-  int                n;            /* message byte size */
+  int                sockfd;     /* socket */
+  int                portno;     /* port to listen on */
+  socklen_t          clientlen;  /* byte size of client's address */
+  struct sockaddr_in serveraddr; /* server's addr */
+  struct sockaddr_in clientaddr; /* client addr */
+  struct hostent    *hostp;      /* client host info */
+  // char               buf[BUFSIZE]; /* message buf */
+  char     *hostaddrp; /* dotted decimal host addr string */
+  int       optval;    /* flag value for setsockopt */
+  // int       n;         /* message byte size */
+  ftp_err_t rv;
 
   /*
    * check command line arguments
@@ -90,11 +91,18 @@ int main(int argc, char **argv) {
     /*
      * recvfrom: receive a UDP datagram from a client
      */
-    bzero(buf, BUFSIZE);
-    n = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&clientaddr,
-                 &clientlen);
-    if (n < 0)
-      error("ERROR in recvfrom", -3);
+    // bzero(buf, BUFSIZE);
+    ftp_chunk_t chunk;
+    rv = ftp_recv_chunk(sockfd, &chunk, -1, (struct sockaddr *)&clientaddr,
+                        &clientlen);
+    if (rv != FTP_ERR_NONE) {
+      error("Error recieving chunk in server\n", -4);
+    }
+
+    // n = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&clientaddr,
+    //              &clientlen);
+    // if (n < 0)
+    //   error("ERROR in recvfrom", -3);
 
     /*
      * gethostbyaddr: determine who sent the datagram
@@ -107,7 +115,7 @@ int main(int argc, char **argv) {
     if (hostaddrp == NULL)
       error("ERROR on inet_ntoa\n", -3);
     printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
-    printf("server received %lu/%d bytes: %s\n", strlen(buf), n, buf);
+    printf("server received %u/%d bytes\n", chunk.nbytes, FTP_PACKETSIZE);
 
     /*
      * sendto: echo the input back to the client
@@ -115,11 +123,10 @@ int main(int argc, char **argv) {
     // while (1)
     // n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&clientaddr,
     //            clientlen);
-    ftp_err_t rv =
-        ftp_send_cmd(sockfd, FTP_CMD_TERM, buf, FTP_PACKETSIZE,
-                     (struct sockaddr *)(&clientaddr), sizeof(clientaddr));
-    printf("FTP_SEND:\t%u\n", rv);
-    if (n < 0)
-      error("ERROR in sendto", -3);
+    rv = ftp_send_chunk(sockfd, chunk.cmd, chunk.packet, chunk.nbytes,
+                        (struct sockaddr *)(&clientaddr), sizeof(clientaddr));
+    // printf("FTP_SEND:\t%u\n", rv);
+    // if (n < 0)
+    //   error("ERROR in sendto", -3);
   }
 }

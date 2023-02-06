@@ -22,7 +22,7 @@
  *      LS : list the contents of the server filesystem.
  *      // Internal flow commands
  *      CANCEL : Stop the ongoing partial transaction.
- *      TERM : Indiciate that the transaction in finished.
+ *      TERM : Indiciate that the transaction in finished. Sentinal
  */
 #define FTP_CMD_GET    ((uint8_t)0x01)
 #define FTP_CMD_PUT    ((uint8_t)0x02)
@@ -61,18 +61,20 @@ ftp_err_t ftp_send_data(int sockfd, const uint8_t *buf, size_t n,
  * FTP_CMD_CANCEL is recieved indicating failure or FTP_CMD_TERM is recieved
  * indicating success.
  */
-ftp_err_t ftp_recv_data(int sockfd, int outfd);
+ftp_err_t ftp_recv_data(int sockfd, int outfd, struct sockaddr *addr,
+                        socklen_t *addrlen);
 
 /**
  * Send a single command packet, used for setting up or ending transactions
  */
-ftp_err_t ftp_send_cmd(int sockfd, ftp_cmd_t cmd, const uint8_t *arg,
-                       size_t arglen, const struct sockaddr *addr,
-                       socklen_t addr_len);
+ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const uint8_t *arg,
+                         size_t arglen, const struct sockaddr *addr,
+                         socklen_t addr_len);
 
 /**
  * Recieve a single command packet, useful for establishing a link (ACK)
  */
-ftp_err_t ftp_recv_cmd(int sockfd, ftp_chunk_t *ret);
+ftp_err_t ftp_recv_chunk(int sockfd, ftp_chunk_t *ret, int timeout, struct sockaddr *addr,
+                         socklen_t *addrlen);
 
 #endif

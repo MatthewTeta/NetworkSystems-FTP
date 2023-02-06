@@ -70,8 +70,8 @@ int main(int argc, char **argv) {
     error("Invalid number of arguments.\n", -1);
   }
 
-  int                sockfd, n, portno;
-  socklen_t          serverlen;
+  int                sockfd, portno;
+  // socklen_t          serverlen;
   struct sockaddr_in serveraddr;
   // struct hostent    *server;
   char *hostname;
@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
 
   // Begin an indefinite command input loop
   char   *cmd = NULL;
-  size_t  buflen, s;
+  size_t  buflen;
   ssize_t len;
   //   wordexp_t arglist;
   char *opcode = NULL;
@@ -157,13 +157,13 @@ int main(int argc, char **argv) {
       // TODO: Send command for get and recieve response
       uint8_t buf[1024];
       for (int i = 0; i < 1024; ++i)
-        buf[i] = i & 0xFF;
+        buf[i] = (i / 4) & 0xFF;
       ftp_err_t rv =
           ftp_send_data(sockfd, buf, 1024, (struct sockaddr *)(&serveraddr),
                         sizeof(serveraddr));
 
       // ftp_err_t rv =
-      //     ftp_send_cmd(sockfd, FTP_CMD_GET, arg2, strlen(arg2),
+      //     ftp_send_chunk(sockfd, FTP_CMD_GET, arg2, strlen(arg2),
       //                  (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
       if (rv != FTP_ERR_NONE) {
         error("Error sending GET command", -3);
@@ -171,11 +171,11 @@ int main(int argc, char **argv) {
 
       // TODO: Get ACK
       // ftp_cmd_t cmd;
-      // rv = ftp_recv_cmd(sockfd, &cmd, )
+      // rv = ftp_recv_chunk(sockfd, &cmd, )
 
-      rv = ftp_recv_data(sockfd, sockfd);
+      rv = ftp_recv_data(sockfd, sockfd, NULL, NULL);
       if (rv != FTP_ERR_NONE) {
-        error("Error sending GET command\n", -3);
+        error("Error recv GET command\n", -3);
       }
 
       // n = sendto(sockfd, arg2, strlen(arg2), 0,
