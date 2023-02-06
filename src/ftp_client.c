@@ -1,8 +1,6 @@
 #include <arpa/inet.h>
-#include <glob.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,7 +68,7 @@ int main(int argc, char **argv) {
     error("Invalid number of arguments.\n", -1);
   }
 
-  int                sockfd, portno;
+  int sockfd, portno;
   // socklen_t          serverlen;
   struct sockaddr_in serveraddr;
   // struct hostent    *server;
@@ -135,7 +133,8 @@ int main(int argc, char **argv) {
   char *opcode = NULL;
   char *arg2   = NULL;
   // glob_t paths;
-  char path[1024];
+  // char      path[1024];
+  ftp_err_t rv;
 
   // Loop forever accepting commands typed into stdin
   for (;;) {
@@ -155,16 +154,17 @@ int main(int argc, char **argv) {
         continue;
       }
       // TODO: Send command for get and recieve response
-      uint8_t buf[1024];
-      for (int i = 0; i < 1024; ++i)
-        buf[i] = (i / 4) & 0xFF;
-      ftp_err_t rv =
-          ftp_send_data(sockfd, buf, 1024, (struct sockaddr *)(&serveraddr),
-                        sizeof(serveraddr));
+      // uint8_t buf[1024];
+      // for (int i = 0; i < 1024; ++i)
+      //   buf[i] = (i / 4) & 0xFF;
 
       // ftp_err_t rv =
-      //     ftp_send_chunk(sockfd, FTP_CMD_GET, arg2, strlen(arg2),
-      //                  (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
+      // ftp_send_data(sockfd, buf, 1024, (struct sockaddr *)(&serveraddr),
+      //               sizeof(serveraddr));
+
+      // Send GET request
+      rv = ftp_send_chunk(sockfd, FTP_CMD_GET, (uint8_t *)arg2, strlen(arg2),
+                          (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
       if (rv != FTP_ERR_NONE) {
         error("Error sending GET command", -3);
       }
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
       // ftp_cmd_t cmd;
       // rv = ftp_recv_chunk(sockfd, &cmd, )
 
-      rv = ftp_recv_data(sockfd, sockfd, NULL, NULL);
+      rv = ftp_recv_data(sockfd, NULL, NULL, NULL);
       if (rv != FTP_ERR_NONE) {
         error("Error recv GET command\n", -3);
       }
@@ -258,16 +258,25 @@ int main(int argc, char **argv) {
       }
     } else if (0 == strcmp("ls", opcode)) {
       printv("LS");
-      // TODO: Move this to the server code
-      FILE *fp = popen("/bin/ls", "r");
-      if (!fp)
-        error("Failed to run the ls command. Is it in your path?\n", -2);
-      while (fgets(path, sizeof(path), fp) != NULL) {
-        printf("%s", path);
+      rv = ftp_send_chunk(sockfd, FTP_CMD_LS, NULL, 0,
+                          (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
+      if (rv != FTP_ERR_NONE) {
+        fprintf(stderr, "Error in LS ftp_send_chunk\n");
+        if (rv == FTP_ERR_SERVER) {
+          // Print the server error
+          ftp_perror();
+        }
+        continue;
       }
-      // printf("%s", )
-      if (-1 == pclose(fp))
-        error("PCLOSE ERROR\n", -2);
+
+      // Recieve the response into the stdout
+      rv = ftp_recv_data(sockfd, stdout, NULL, NULL);
+      if (rv != FTP_ERR_NONE) {
+        fprintf(stderr, "Error in LS ftp_recv_data\n");
+        if (rv == FTP_ERR_SERVER)
+          ftp_perror();
+        continue;
+      }
     } else if (0 == strcmp("exit", opcode)) {
       printv("EXIT");
       exit(0);

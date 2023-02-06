@@ -21,7 +21,8 @@
  *      DELETE <filename>: delete <filename> file from server fs.
  *      LS : list the contents of the server filesystem.
  *      // Internal flow commands
- *      CANCEL : Stop the ongoing partial transaction.
+ *      DATA : Any packet of bytes for a file
+ *      ERROR <message>: Stop any ongoing partial transaction.
  *      TERM : Indiciate that the transaction in finished. Sentinal
  */
 #define FTP_CMD_GET    ((uint8_t)0x01)
@@ -29,7 +30,7 @@
 #define FTP_CMD_DELETE ((uint8_t)0x03)
 #define FTP_CMD_LS     ((uint8_t)0x04)
 #define FTP_CMD_DATA   ((uint8_t)0x05)
-#define FTP_CMD_CANCEL ((uint8_t)0x06)
+#define FTP_CMD_ERROR  ((uint8_t)0x06)
 #define FTP_CMD_TERM   ((uint8_t)0x07)
 typedef uint8_t ftp_cmd_t;
 
@@ -46,6 +47,7 @@ typedef enum {
   FTP_ERR_POLL,
   FTP_ERR_TIMEOUT,
   FTP_ERR_INVALID,
+  FTP_ERR_SERVER,
 } ftp_err_t;
 
 /**
@@ -58,10 +60,10 @@ ftp_err_t ftp_send_data(int sockfd, const uint8_t *buf, size_t n,
 
 /**
  * recieve FTP_CMD_DATA chunks from sockfd until either a timeout occurs or an
- * FTP_CMD_CANCEL is recieved indicating failure or FTP_CMD_TERM is recieved
+ * FTP_CMD_ERROR is recieved indicating failure or FTP_CMD_TERM is recieved
  * indicating success.
  */
-ftp_err_t ftp_recv_data(int sockfd, int outfd, struct sockaddr *addr,
+ftp_err_t ftp_recv_data(int sockfd, FILE *outfd, struct sockaddr *addr,
                         socklen_t *addrlen);
 
 /**
@@ -74,7 +76,12 @@ ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const uint8_t *arg,
 /**
  * Recieve a single command packet, useful for establishing a link (ACK)
  */
-ftp_err_t ftp_recv_chunk(int sockfd, ftp_chunk_t *ret, int timeout, struct sockaddr *addr,
-                         socklen_t *addrlen);
+ftp_err_t ftp_recv_chunk(int sockfd, ftp_chunk_t *ret, int timeout,
+                         struct sockaddr *addr, socklen_t *addrlen);
+
+/**
+ * Print the error message for the last server error to stderr if it exists
+ */
+void ftp_perror();
 
 #endif

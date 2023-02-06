@@ -1,5 +1,4 @@
 #include <arpa/inet.h>
-#include <glob.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -38,8 +37,8 @@ int main(int argc, char **argv) {
   struct sockaddr_in clientaddr; /* client addr */
   struct hostent    *hostp;      /* client host info */
   // char               buf[BUFSIZE]; /* message buf */
-  char     *hostaddrp; /* dotted decimal host addr string */
-  int       optval;    /* flag value for setsockopt */
+  char *hostaddrp; /* dotted decimal host addr string */
+  int   optval;    /* flag value for setsockopt */
   // int       n;         /* message byte size */
   ftp_err_t rv;
 
@@ -85,7 +84,8 @@ int main(int argc, char **argv) {
   /*
    * main loop: wait for a datagram, then echo it
    */
-  clientlen = sizeof(clientaddr);
+  struct sockaddr *cliaddr = (struct sockaddr *)&clientaddr;
+  clientlen                = sizeof(clientaddr);
   while (1) {
 
     /*
@@ -93,16 +93,12 @@ int main(int argc, char **argv) {
      */
     // bzero(buf, BUFSIZE);
     ftp_chunk_t chunk;
-    rv = ftp_recv_chunk(sockfd, &chunk, -1, (struct sockaddr *)&clientaddr,
-                        &clientlen);
+    rv = ftp_recv_chunk(sockfd, &chunk, -1, cliaddr, &clientlen);
     if (rv != FTP_ERR_NONE) {
       error("Error recieving chunk in server\n", -4);
     }
 
-    // n = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&clientaddr,
-    //              &clientlen);
-    // if (n < 0)
-    //   error("ERROR in recvfrom", -3);
+    printf("SERVER RECV: %02X\n", 0xFF & chunk.cmd);
 
     /*
      * gethostbyaddr: determine who sent the datagram
@@ -114,19 +110,46 @@ int main(int argc, char **argv) {
     hostaddrp = inet_ntoa(clientaddr.sin_addr);
     if (hostaddrp == NULL)
       error("ERROR on inet_ntoa\n", -3);
-    printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
-    printf("server received %u/%d bytes\n", chunk.nbytes, FTP_PACKETSIZE);
+    // printf("server received datagram from %s (%s)\n", hostp->h_name,
+    // hostaddrp); printf("server received %u/%d bytes\n", chunk.nbytes,
+    // FTP_PACKETSIZE);
 
-    /*
-     * sendto: echo the input back to the client
-     */
-    // while (1)
-    // n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&clientaddr,
-    //            clientlen);
-    rv = ftp_send_chunk(sockfd, chunk.cmd, chunk.packet, chunk.nbytes,
-                        (struct sockaddr *)(&clientaddr), sizeof(clientaddr));
-    // printf("FTP_SEND:\t%u\n", rv);
-    // if (n < 0)
-    //   error("ERROR in sendto", -3);
+    // Detertmine which command got sent to the server and handle synchronously
+    // (single client)
+    switch (chunk.cmd) {
+    case FTP_CMD_GET:
+      break;
+    case FTP_CMD_PUT:
+      break;
+    case FTP_CMD_DELETE:
+      break;
+    case FTP_CMD_LS:;
+      printf("SERVER LS\n");
+      // Execute the ls command and send the stdout over the socket
+      char  path[1024];
+      FILE *fp = popen("/bin/ls", "r");
+      if (!fp)
+        error("Failed to run the 'ls' command. Is it in your path?\n", -2);
+      while (fgets(path, sizeof(path), fp) != NULL) {
+        ftp_send_data(sockfd, (uint8_t *)path, strlen(path), cliaddr,
+                      clientlen);
+      }
+
+      // Send TERM
+      ftp_send_chunk(sockfd, FTP_CMD_TERM, NULL, 0, cliaddr, clientlen);
+
+      // printf("%s", )
+      if (-1 == pclose(fp))
+        error("PCLOSE ERROR\n", -2);
+
+      break;
+    default:
+      fprintf(stderr, "Invalid Command: 0x%02X\n", 0xFF & chunk.cmd);
+      ftp_send_chunk(sockfd, FTP_CMD_ERROR,
+                     (uint8_t *)"Invalid Command (Bad Programmer)",
+                     FTP_PACKETSIZE, cliaddr, clientlen);
+      break;
+    }
+
   }
 }

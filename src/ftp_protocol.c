@@ -6,6 +6,13 @@
 #include "ftp_protocol.h"
 #include "util.h"
 
+// Private Variable
+// .text chunk for error printing
+ftp_chunk_t _ftp_error = {
+    .cmd    = 0,
+    .nbytes = 0,
+};
+
 ftp_err_t ftp_send_data(int sockfd, const uint8_t *buf, size_t n,
                         const struct sockaddr *addr, socklen_t addr_len) {
   if (!buf || !addr || n == 0) {
@@ -27,17 +34,13 @@ ftp_err_t ftp_send_data(int sockfd, const uint8_t *buf, size_t n,
     buf += packet_size;
     n_remaining -= packet_size;
   }
-  // Send a termination command
-  if (FTP_ERR_NONE !=
-      (rv = ftp_send_chunk(sockfd, FTP_CMD_TERM, NULL, 0, addr, addr_len)))
-    return rv;
 
   return FTP_ERR_NONE;
 }
 
-ftp_err_t ftp_recv_data(int sockfd, int outfd, struct sockaddr *addr,
+ftp_err_t ftp_recv_data(int sockfd, FILE *outfd, struct sockaddr *addr,
                         socklen_t *addrlen) {
-  if (sockfd <= 0 || outfd <= 0)
+  if (sockfd <= 0)
     return -1;
 
   ftp_err_t   rv;
@@ -51,10 +54,26 @@ ftp_err_t ftp_recv_data(int sockfd, int outfd, struct sockaddr *addr,
     if (FTP_ERR_NONE !=
         (rv = ftp_recv_chunk(sockfd, &chunk, FTP_TIMEOUT_MS, addr, addrlen)))
       return rv;
-    printf("chunk [%d]: CMD 0x%02X : SIZE %u\n", i++, chunk.cmd, chunk.nbytes);
-    print_hex(chunk.packet, chunk.nbytes);
+    // printf("chunk [%d]: CMD 0x%02X : SIZE %u\n", i++, chunk.cmd,
+    // chunk.nbytes); print_hex(chunk.packet, chunk.nbytes);
+    // TODO: Write to outfd if not NULL
+    if (outfd) {
+      fwrite(chunk.packet, 1, (size_t)chunk.nbytes, outfd);
+    }
   }
-  return 0;
+
+  switch (chunk.cmd) {
+  case FTP_CMD_ERROR:
+    // Store the error in private variable
+    memcpy(&_ftp_error, &chunk, sizeof(ftp_chunk_t));
+    return FTP_ERR_SERVER;
+  case FTP_CMD_TERM:
+    // Expected value
+    return FTP_ERR_NONE;
+  default:
+    break;
+  }
+  return FTP_ERR_INVALID;
 }
 
 ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const uint8_t *arg,
@@ -140,4 +159,10 @@ ftp_err_t ftp_recv_chunk(int sockfd, ftp_chunk_t *ret, int timeout,
   }
 
   return FTP_ERR_NONE;
+}
+
+void ftp_perror() {
+  if (_ftp_error.cmd == FTP_CMD_ERROR) {
+    fprintf(stderr, "%s\n", _ftp_error.packet);
+  }
 }
