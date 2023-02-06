@@ -12,7 +12,7 @@
 
 #include "ftp_protocol.h"
 
-#define BUFSZ 1024
+// #define BUFSZ 1024
 
 /**
  * Print a message if VERBOSE is defined
@@ -64,7 +64,7 @@ void printUsage() {
 }
 
 int main(int argc, char **argv) {
-  char buf[BUFSZ];
+  // char buf[BUFSZ];
   if (argc != 3) {
     printUsage();
     error("Invalid number of arguments.\n", -1);
@@ -77,18 +77,17 @@ int main(int argc, char **argv) {
   char *hostname;
   char *port;
 
-  // TODO: More argument parsing for socket connection
   hostname = argv[1];
   port     = argv[2];
   portno   = atoi(port);
   if (portno == 0) {
-    error("Invalid port given as argument", -1);
+    error("Invalid port given as argument\n", -1);
   }
 
   /* socket: create the socket */
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
   if (sockfd < 0)
-    error("ERROR opening socket", -3);
+    error("ERROR opening socket\n", -3);
 
   int              status;
   struct addrinfo  hints;
@@ -107,7 +106,6 @@ int main(int argc, char **argv) {
     exit(-3);
   }
 
-  // Do something
   // Check that there is at least 1 result
   if (servinfo == NULL) {
     fprintf(stderr, "No address found for hostname: %s\n", hostname);
@@ -134,10 +132,10 @@ int main(int argc, char **argv) {
   size_t  buflen, s;
   ssize_t len;
   //   wordexp_t arglist;
-  char  *opcode = NULL;
-  char  *arg2   = NULL;
-  glob_t paths;
-  char   path[1024];
+  char *opcode = NULL;
+  char *arg2   = NULL;
+  // glob_t paths;
+  char path[1024];
 
   // Loop forever accepting commands typed into stdin
   for (;;) {
@@ -157,76 +155,101 @@ int main(int argc, char **argv) {
         continue;
       }
       // TODO: Send command for get and recieve response
-      n = sendto(sockfd, arg2, strlen(arg2), 0,
-                 (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
-      if (n < 0) {
-        puts("Error in sendto.");
-        // break;
-      }
-      printf("N = %d\n", n);
-      // break;
+      uint8_t buf[1024];
+      for (int i = 0; i < 1024; ++i)
+        buf[i] = i & 0xFF;
+      ftp_err_t rv =
+          ftp_send_data(sockfd, buf, 1024, (struct sockaddr *)(&serveraddr),
+                        sizeof(serveraddr));
 
-      /* print the server's reply */
-      serverlen = sizeof(serveraddr);
-      printf("serverlen: %u\n", serverlen);
-      // We are assuming only one server, so we don't really need to check the
-      // information stored into the serveraddr
-      while (1) {
-        puts("LOOP");
-        // Poll to allow for a timeout
-        short         revents = 0;
-        struct pollfd fds     = {
-                .fd      = sockfd,
-                .events  = POLLIN,
-                .revents = revents,
-        };
-        int rv = poll(&fds, 1, FTP_TIMEOUT_MS);
-        if (rv < 0) {
-          error("Polling error", -6);
-        } else if (rv == 0) {
-          puts("Timeout occured from poll");
-          break;
-        } else {
-          // Event happened
-          puts("Event happened");
-          if (revents & (POLLERR | POLLNVAL)) {
-            error("There was an error with the file descriptor when polling",
-                  -6);
-          }
-          // There is data to be read from the pipe
-          bzero(buf, BUFSZ);
-          int nrec = recvfrom(sockfd, buf, BUFSZ, 0,
-                              (struct sockaddr *)(&serveraddr), &serverlen);
-          printf("nrec: %d\n", nrec);
-          if (nrec < 0)
-            error("ERROR in recvfrom", -5);
-          printf("serverlen: %u\n", serverlen);
-          printf("Echo from server: %s", buf);
-          bzero(buf, strlen(buf));
-          if (nrec == n)
-            break;
-        }
+      // ftp_err_t rv =
+      //     ftp_send_cmd(sockfd, FTP_CMD_GET, arg2, strlen(arg2),
+      //                  (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
+      if (rv != FTP_ERR_NONE) {
+        error("Error sending GET command", -3);
       }
+
+      // TODO: Get ACK
+      // ftp_cmd_t cmd;
+      // rv = ftp_recv_cmd(sockfd, &cmd, )
+
+      rv = ftp_recv_data(sockfd, sockfd);
+      if (rv != FTP_ERR_NONE) {
+        error("Error sending GET command\n", -3);
+      }
+
+      // n = sendto(sockfd, arg2, strlen(arg2), 0,
+      //            (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
+      // if (n < 0) {
+      //   puts("Error in sendto.");
+      //   // break;
+      // }
+      // printf("N = %d\n", n);
+      // // break;
+
+      // /* print the server's reply */
+      // serverlen = sizeof(serveraddr);
+      // printf("serverlen: %u\n", serverlen);
+      // // We are assuming only one server, so we don't really need to check
+      // the
+      // // information stored into the serveraddr
+      // while (1) {
+      //   puts("LOOP");
+      //   // Poll to allow for a timeout
+      //   short         revents = 0;
+      //   struct pollfd fds     = {
+      //           .fd      = sockfd,
+      //           .events  = POLLIN,
+      //           .revents = revents,
+      //   };
+      //   int rv = poll(&fds, 1, FTP_TIMEOUT_MS);
+      //   if (rv < 0) {
+      //     error("Polling error", -6);
+      //   } else if (rv == 0) {
+      //     puts("Timeout occured from poll");
+      //     break;
+      //   } else {
+      //     // Event happened
+      //     puts("Event happened");
+      //     if (revents & (POLLERR | POLLNVAL)) {
+      //       error("There was an error with the file descriptor when polling",
+      //             -6);
+      //     }
+      //     // There is data to be read from the pipe
+      //     bzero(buf, BUFSZ);
+      //     int nrec = recvfrom(sockfd, buf, BUFSZ, 0,
+      //                         (struct sockaddr *)(&serveraddr), &serverlen);
+      //     printf("nrec: %d\n", nrec);
+      //     if (nrec < 0)
+      //       error("ERROR in recvfrom", -5);
+      //     printf("serverlen: %u\n", serverlen);
+      //     printf("Echo from server: %s", buf);
+      //     bzero(buf, strlen(buf));
+      //     if (nrec == n)
+      //       break;
+      //   }
+      // }
     } else if (0 == strcmp("put", opcode)) {
       printv("PUT");
       if (arg2 == NULL) {
         puts("Must provide a path argument to 'put' command.");
         continue;
       }
-      // TODO: Send file data to server in datagram chunks
-      if (0 != glob(arg2, GLOB_MARK, NULL, &paths)) {
-        printf("Error matching filepath.\n");
-        continue;
-      }
-      // Iterate through the paths returned from glob search
-      for (unsigned int i = 0; i < paths.gl_pathc; ++i) {
-        // Ignore if this path is a dir
-        s = strlen(paths.gl_pathv[i]);
-        if (paths.gl_pathv[i][s - 1] == '/')
-          continue;
-        printf("\t[%d]: %s\n", i, paths.gl_pathv[i]);
-      }
-      globfree(&paths);
+      printf("PUT %s\n", arg2);
+      // // TODO: Send file data to server in datagram chunks
+      // if (0 != glob(arg2, GLOB_MARK, NULL, &paths)) {
+      //   printf("Error matching filepath.\n");
+      //   continue;
+      // }
+      // // Iterate through the paths returned from glob search
+      // for (unsigned int i = 0; i < paths.gl_pathc; ++i) {
+      //   // Ignore if this path is a dir
+      //   s = strlen(paths.gl_pathv[i]);
+      //   if (paths.gl_pathv[i][s - 1] == '/')
+      //     continue;
+      //   printf("\t[%d]: %s\n", i, paths.gl_pathv[i]);
+      // }
+      // globfree(&paths);
     } else if (0 == strcmp("delete", opcode)) {
       printv("DELETE");
       if (arg2 == NULL) {
@@ -238,13 +261,13 @@ int main(int argc, char **argv) {
       // TODO: Move this to the server code
       FILE *fp = popen("/bin/ls", "r");
       if (!fp)
-        error("Failed to run the ls command. Is it in your path?", -2);
+        error("Failed to run the ls command. Is it in your path?\n", -2);
       while (fgets(path, sizeof(path), fp) != NULL) {
         printf("%s", path);
       }
       // printf("%s", )
       if (-1 == pclose(fp))
-        error("PCLOSE ERROR", -2);
+        error("PCLOSE ERROR\n", -2);
     } else if (0 == strcmp("exit", opcode)) {
       printv("EXIT");
       exit(0);

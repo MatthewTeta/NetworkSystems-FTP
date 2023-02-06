@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "ftp_protocol.h"
+
 #define BUFSIZE 1024
 
 /**
@@ -113,6 +115,10 @@ int main(int argc, char **argv) {
     // while (1)
     // n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&clientaddr,
     //            clientlen);
+    ftp_err_t rv =
+        ftp_send_cmd(sockfd, FTP_CMD_TERM, buf, FTP_PACKETSIZE,
+                     (struct sockaddr *)(&clientaddr), sizeof(clientaddr));
+    printf("FTP_SEND:\t%u\n", rv);
     if (n < 0)
       error("ERROR in sendto", -3);
   }
