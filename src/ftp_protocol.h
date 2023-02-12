@@ -37,7 +37,6 @@ typedef uint8_t ftp_cmd_t;
 
 typedef struct {
   ftp_cmd_t cmd;
-  // uint32_t  packet_num;
   int32_t   nbytes;
   char      packet[FTP_PACKETSIZE];
 } ftp_chunk_t;

@@ -6,3 +6,5 @@ cp
 *.tar
 *.o
 .vscode
+client
+server

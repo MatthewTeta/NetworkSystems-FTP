@@ -156,10 +156,6 @@ int main(int argc, char **argv) {
         continue;
       }
 
-      // Initialize GET transaction (GET <filename>)
-      // Wait for ACK or error
-      // Begin data transmission
-      
       if (!access(arg2, F_OK)) {
         perror("A file with the specified name already exists locally.");
         continue;
