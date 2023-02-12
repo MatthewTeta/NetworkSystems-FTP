@@ -13,27 +13,30 @@ ftp_chunk_t _ftp_error = {
     .nbytes = 0,
 };
 
-ftp_err_t ftp_send_data(int sockfd, const uint8_t *buf, size_t n,
-                        const struct sockaddr *addr, socklen_t addr_len) {
-  if (!buf || !addr || n == 0) {
+ftp_err_t ftp_send_data(int sockfd, FILE *infp, const struct sockaddr *addr,
+                        socklen_t addr_len) {
+  if (sockfd <= 0 || !infp || !addr) {
     return FTP_ERR_ARGS;
   }
 
   ftp_err_t rv;
-  size_t    n_remaining = n;
-  // uint8_t     *p           = buf;
+  size_t    nread;
+  char      buf[FTP_PACKETSIZE];
 
   // Fracture buf into chunks until all are sent
-  while (n_remaining) {
-    printf("CHUNK: %lu\n", n_remaining);
-    size_t packet_size =
-        n_remaining >= FTP_PACKETSIZE ? FTP_PACKETSIZE : n_remaining;
-    if (FTP_ERR_NONE != (rv = ftp_send_chunk(sockfd, FTP_CMD_DATA, buf,
-                                             packet_size, addr, addr_len)))
+  while (0 != (nread = fread(buf, 1, FTP_PACKETSIZE, infp))) {
+    // printf("CHUNK: %lu\n", n_remaining);
+    if (FTP_ERR_NONE !=
+        (rv = ftp_send_chunk(sockfd, FTP_CMD_DATA, buf, nread, addr, addr_len)))
       return rv;
-    buf += packet_size;
-    n_remaining -= packet_size;
+
+    // TODO:
+    // (Synchronous) wait for ACK from recieving party
+    // rv = ftp_recv_chunk(sockfd)
   }
+
+  // Send TERM to indicate file is done
+  ftp_send_chunk(sockfd, FTP_CMD_TERM, NULL, 0, addr, addr_len);
 
   return FTP_ERR_NONE;
 }
@@ -48,38 +51,42 @@ ftp_err_t ftp_recv_data(int sockfd, FILE *outfd, struct sockaddr *addr,
       .cmd = FTP_CMD_DATA,
   };
 
-  int i = 0;
-  while (chunk.cmd == FTP_CMD_DATA) {
+  while (1) {
     // Receive chunks
     if (FTP_ERR_NONE !=
         (rv = ftp_recv_chunk(sockfd, &chunk, FTP_TIMEOUT_MS, addr, addrlen)))
       return rv;
+    // Determine what to do with the recieved chunk data
+    switch (chunk.cmd) {
+    case FTP_CMD_DATA:
+      if (outfd) {
+        fwrite(chunk.packet, 1, (size_t)chunk.nbytes, outfd);
+      }
+      break;
+    case FTP_CMD_ERROR:
+      // Store the error in private variable
+      memcpy(&_ftp_error, &chunk, sizeof(ftp_chunk_t));
+      ftp_perror();
+      return FTP_ERR_SERVER;
+    case FTP_CMD_TERM:
+      // Expected value
+      return FTP_ERR_NONE;
+    default:
+      return FTP_ERR_INVALID;
+    }
     // printf("chunk [%d]: CMD 0x%02X : SIZE %u\n", i++, chunk.cmd,
     // chunk.nbytes); print_hex(chunk.packet, chunk.nbytes);
     // TODO: Write to outfd if not NULL
-    if (outfd) {
-      fwrite(chunk.packet, 1, (size_t)chunk.nbytes, outfd);
-    }
   }
 
-  switch (chunk.cmd) {
-  case FTP_CMD_ERROR:
-    // Store the error in private variable
-    memcpy(&_ftp_error, &chunk, sizeof(ftp_chunk_t));
-    return FTP_ERR_SERVER;
-  case FTP_CMD_TERM:
-    // Expected value
-    return FTP_ERR_NONE;
-  default:
-    break;
-  }
   return FTP_ERR_INVALID;
 }
 
-ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const uint8_t *arg,
-                         size_t arglen, const struct sockaddr *addr,
+ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const char *arg,
+                         ssize_t arglen, const struct sockaddr *addr,
                          socklen_t addr_len) {
-  if (sockfd <= 0 || arglen > FTP_PACKETSIZE || !addr || addr_len == 0)
+  if (sockfd <= 0 || arglen > FTP_PACKETSIZE || arglen < -1 || !addr ||
+      addr_len == 0)
     return FTP_ERR_ARGS;
 
   ftp_chunk_t chunk;
@@ -92,7 +99,11 @@ ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const uint8_t *arg,
 
   // Set the packet field to zero unless an argument is provided
   if (arg != NULL) {
-    memcpy((void *)(&chunk.packet), (void *)arg, (size_t)chunk.nbytes);
+    if (arglen == -1) {
+      strncpy(chunk.packet, arg, FTP_PACKETSIZE);
+    } else {
+      memcpy((void *)(&chunk.packet), (void *)arg, (size_t)chunk.nbytes);
+    }
   } else {
     bzero((void *)(&chunk.packet), FTP_PACKETSIZE);
   }
@@ -103,7 +114,7 @@ ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const uint8_t *arg,
   // Keep calling sendto until the full length of the packet is transmitted
   while (ntot != sizeof(ftp_chunk_t)) {
     // TODO: Convert to network byte order
-    nsent = sendto(sockfd, (void *)((uint8_t *)(&chunk) + ntot),
+    nsent = sendto(sockfd, (void *)((&chunk) + ntot),
                    sizeof(ftp_chunk_t) - ntot, 0, addr, addr_len);
     if (nsent < 0) {
       perror("Error sending data in ftp_send_buf");

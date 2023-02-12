@@ -145,10 +145,14 @@ int main(int argc, char **argv) {
     // Parse command
     processCmdString(cmd, &opcode, &arg2);
 
+    if (arg2 != NULL && strlen(arg2) > FTP_PACKETSIZE) {
+      perror("Filename is too long for current implementation!");
+      continue;
+    }
+
     // Parse based on opcode
     if (0 == strcmp("get", opcode)) {
       printv("GET");
-      printf("%s\n", cmd);
       if (arg2 == NULL) {
         puts("Must provide a path argument to 'get' command.");
         continue;
@@ -163,7 +167,7 @@ int main(int argc, char **argv) {
       //               sizeof(serveraddr));
 
       // Send GET request
-      rv = ftp_send_chunk(sockfd, FTP_CMD_GET, (uint8_t *)arg2, strlen(arg2),
+      rv = ftp_send_chunk(sockfd, FTP_CMD_GET, arg2, strlen(arg2),
                           (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
       if (rv != FTP_ERR_NONE) {
         error("Error sending GET command", -3);
@@ -173,7 +177,8 @@ int main(int argc, char **argv) {
       // ftp_cmd_t cmd;
       // rv = ftp_recv_chunk(sockfd, &cmd, )
 
-      rv = ftp_recv_data(sockfd, NULL, NULL, NULL);
+      // Recieve into stdout
+      rv = ftp_recv_data(sockfd, stdout, NULL, NULL);
       if (rv != FTP_ERR_NONE) {
         error("Error recv GET command\n", -3);
       }
@@ -262,10 +267,10 @@ int main(int argc, char **argv) {
                           (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
       if (rv != FTP_ERR_NONE) {
         fprintf(stderr, "Error in LS ftp_send_chunk\n");
-        if (rv == FTP_ERR_SERVER) {
-          // Print the server error
-          ftp_perror();
-        }
+        // if (rv == FTP_ERR_SERVER) {
+        //   // Print the server error
+        //   ftp_perror();
+        // }
         continue;
       }
 
@@ -273,8 +278,8 @@ int main(int argc, char **argv) {
       rv = ftp_recv_data(sockfd, stdout, NULL, NULL);
       if (rv != FTP_ERR_NONE) {
         fprintf(stderr, "Error in LS ftp_recv_data\n");
-        if (rv == FTP_ERR_SERVER)
-          ftp_perror();
+        // if (rv == FTP_ERR_SERVER)
+        //   ftp_perror();
         continue;
       }
     } else if (0 == strcmp("exit", opcode)) {

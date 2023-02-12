@@ -36,8 +36,8 @@ typedef uint8_t ftp_cmd_t;
 
 typedef struct {
   ftp_cmd_t cmd;
-  uint32_t  nbytes;
-  uint8_t   packet[FTP_PACKETSIZE];
+  int32_t   nbytes;
+  char      packet[FTP_PACKETSIZE];
 } ftp_chunk_t;
 
 typedef enum {
@@ -55,8 +55,8 @@ typedef enum {
  * Given an arbitrary length buffer, func will break it up into packets
  * and send the chunks through the socket to the address
  */
-ftp_err_t ftp_send_data(int sockfd, const uint8_t *buf, size_t n,
-                        const struct sockaddr *addr, socklen_t addr_len);
+ftp_err_t ftp_send_data(int sockfd, FILE *infp, const struct sockaddr *addr,
+                        socklen_t addr_len);
 
 /**
  * recieve FTP_CMD_DATA chunks from sockfd until either a timeout occurs or an
@@ -67,10 +67,11 @@ ftp_err_t ftp_recv_data(int sockfd, FILE *outfd, struct sockaddr *addr,
                         socklen_t *addrlen);
 
 /**
- * Send a single command packet, used for setting up or ending transactions
+ * Send a single command packet, used for setting up or ending transactions.
+ * Use arglen -1 for strings (uses strlen to copy the relevant bit)
  */
-ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const uint8_t *arg,
-                         size_t arglen, const struct sockaddr *addr,
+ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const char *arg,
+                         ssize_t arglen, const struct sockaddr *addr,
                          socklen_t addr_len);
 
 /**

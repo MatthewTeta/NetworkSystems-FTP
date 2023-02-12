@@ -41,6 +41,7 @@ int main(int argc, char **argv) {
   int   optval;    /* flag value for setsockopt */
   // int       n;         /* message byte size */
   ftp_err_t rv;
+  FILE     *fp;
 
   /*
    * check command line arguments
@@ -118,25 +119,38 @@ int main(int argc, char **argv) {
     // (single client)
     switch (chunk.cmd) {
     case FTP_CMD_GET:
+      printv("SERVER GET");
+      // Check if the file exists
+      if (0 != access(chunk.packet, F_OK)) {
+        ftp_send_chunk(sockfd, FTP_CMD_ERROR,
+                       "The specified file does not exists in the "
+                       "server file system.\n",
+                       -1, cliaddr, clientlen);
+        continue;
+      }
+      // Open the file
+      fp = fopen(chunk.packet, "r");
+      ftp_send_data(sockfd, fp, cliaddr, clientlen);
+      fclose(fp);
       break;
     case FTP_CMD_PUT:
       break;
     case FTP_CMD_DELETE:
       break;
     case FTP_CMD_LS:;
-      printf("SERVER LS\n");
+      printv("SERVER LS");
       // Execute the ls command and send the stdout over the socket
-      char  path[1024];
-      FILE *fp = popen("/bin/ls", "r");
+      fp = popen("/bin/ls -l", "r");
       if (!fp)
         error("Failed to run the 'ls' command. Is it in your path?\n", -2);
-      while (fgets(path, sizeof(path), fp) != NULL) {
-        ftp_send_data(sockfd, (uint8_t *)path, strlen(path), cliaddr,
-                      clientlen);
-      }
+      ftp_send_data(sockfd, fp, cliaddr, clientlen);
+      // while (fgets(path, sizeof(path), fp) != NULL) {
+      //   ftp_send_data(sockfd, (uint8_t *)path, strlen(path), cliaddr,
+      //                 clientlen);
+      // }
 
-      // Send TERM
-      ftp_send_chunk(sockfd, FTP_CMD_TERM, NULL, 0, cliaddr, clientlen);
+      // // Send TERM
+      // ftp_send_chunk(sockfd, FTP_CMD_TERM, NULL, 0, cliaddr, clientlen);
 
       // printf("%s", )
       if (-1 == pclose(fp))
@@ -145,11 +159,9 @@ int main(int argc, char **argv) {
       break;
     default:
       fprintf(stderr, "Invalid Command: 0x%02X\n", 0xFF & chunk.cmd);
-      ftp_send_chunk(sockfd, FTP_CMD_ERROR,
-                     (uint8_t *)"Invalid Command (Bad Programmer)",
-                     FTP_PACKETSIZE, cliaddr, clientlen);
+      ftp_send_chunk(sockfd, FTP_CMD_ERROR, "Invalid Command (Bad Programmer)",
+                     -1, cliaddr, clientlen);
       break;
     }
-
   }
 }
