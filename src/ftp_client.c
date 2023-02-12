@@ -161,14 +161,14 @@ int main(int argc, char **argv) {
         error("Error sending GET command", -3);
       }
 
-      if (access(arg2, F_OK)) {
+      if (!access(arg2, F_OK)) {
         perror("A file with the specified name already exists locally.");
         continue;
       }
 
       // Recieve into a file
       fp = fopen(arg2, "w");
-      rv = ftp_recv_data(sockfd, stdout, NULL, NULL);
+      rv = ftp_recv_data(sockfd, fp, NULL, NULL);
       fclose(fp);
       if (rv != FTP_ERR_NONE && rv != FTP_ERR_SERVER) {
         error("Error recv GET command\n", -3);
