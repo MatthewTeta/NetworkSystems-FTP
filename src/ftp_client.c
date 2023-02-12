@@ -121,6 +121,8 @@ int main(int argc, char **argv) {
          sizeof(struct in_addr)); // Result from DNS lookup
   serveraddr.sin_port = htons(portno);
 
+  ftp_set_socket(sockfd, (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
+
   freeaddrinfo(servinfo);
 
   // Begin an indefinite command input loop
@@ -154,21 +156,25 @@ int main(int argc, char **argv) {
         continue;
       }
 
-      // Send GET request
-      rv = ftp_send_chunk(sockfd, FTP_CMD_GET, arg2, strlen(arg2),
-                          (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
-      if (rv != FTP_ERR_NONE) {
-        error("Error sending GET command", -3);
-      }
-
+      // Initialize GET transaction (GET <filename>)
+      // Wait for ACK or error
+      // Begin data transmission
+      
       if (!access(arg2, F_OK)) {
         perror("A file with the specified name already exists locally.");
         continue;
       }
 
+      // Send GET request
+      rv = ftp_send_chunk(FTP_CMD_GET, arg2, -1, 1);
+      if (rv != FTP_ERR_NONE) {
+        error("Error sending GET command", -3);
+        continue;
+      }
+
       // Recieve into a file
       fp = fopen(arg2, "w");
-      rv = ftp_recv_data(sockfd, fp, NULL, NULL);
+      rv = ftp_recv_data(fp, NULL, NULL);
       fclose(fp);
       if (rv != FTP_ERR_NONE && rv != FTP_ERR_SERVER) {
         error("Error recv GET command\n", -3);
@@ -202,8 +208,7 @@ int main(int argc, char **argv) {
       }
     } else if (0 == strcmp("ls", opcode)) {
       printv("LS");
-      rv = ftp_send_chunk(sockfd, FTP_CMD_LS, NULL, 0,
-                          (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
+      rv = ftp_send_chunk(FTP_CMD_LS, NULL, 0, 1);
       if (rv != FTP_ERR_NONE) {
         fprintf(stderr, "Error in LS ftp_send_chunk\n");
         // if (rv == FTP_ERR_SERVER) {
@@ -214,7 +219,7 @@ int main(int argc, char **argv) {
       }
 
       // Recieve the response into the stdout
-      rv = ftp_recv_data(sockfd, stdout, NULL, NULL);
+      rv = ftp_recv_data(stdout, NULL, NULL);
       if (rv != FTP_ERR_NONE) {
         fprintf(stderr, "Error in LS ftp_recv_data\n");
         // if (rv == FTP_ERR_SERVER)

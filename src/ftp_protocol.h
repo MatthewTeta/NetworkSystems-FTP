@@ -32,10 +32,12 @@
 #define FTP_CMD_DATA   ((uint8_t)0x05)
 #define FTP_CMD_ERROR  ((uint8_t)0x06)
 #define FTP_CMD_TERM   ((uint8_t)0x07)
+#define FTP_CMD_ACK    ((uint8_t)0x08)
 typedef uint8_t ftp_cmd_t;
 
 typedef struct {
   ftp_cmd_t cmd;
+  // uint32_t  packet_num;
   int32_t   nbytes;
   char      packet[FTP_PACKETSIZE];
 } ftp_chunk_t;
@@ -51,34 +53,38 @@ typedef enum {
 } ftp_err_t;
 
 /**
+ * Initialize the FTP implementation to use the given address for outgoing
+ * transmissions
+ */
+void ftp_set_socket(int sockfd, struct sockaddr *addr, socklen_t addr_len);
+
+/**
  * @brief Send arbitrary buffer over the socket
  * Given an arbitrary length buffer, func will break it up into packets
  * and send the chunks through the socket to the address
  */
-ftp_err_t ftp_send_data(int sockfd, FILE *infp, const struct sockaddr *addr,
-                        socklen_t addr_len);
+ftp_err_t ftp_send_data(FILE *infp);
 
 /**
  * recieve FTP_CMD_DATA chunks from sockfd until either a timeout occurs or an
  * FTP_CMD_ERROR is recieved indicating failure or FTP_CMD_TERM is recieved
  * indicating success.
  */
-ftp_err_t ftp_recv_data(int sockfd, FILE *outfd, struct sockaddr *addr,
-                        socklen_t *addrlen);
+ftp_err_t ftp_recv_data(FILE *outfd, struct sockaddr *out_addr,
+                        socklen_t *out_addr_len);
 
 /**
  * Send a single command packet, used for setting up or ending transactions.
  * Use arglen -1 for strings (uses strlen to copy the relevant bit)
  */
-ftp_err_t ftp_send_chunk(int sockfd, ftp_cmd_t cmd, const char *arg,
-                         ssize_t arglen, const struct sockaddr *addr,
-                         socklen_t addr_len);
+ftp_err_t ftp_send_chunk(ftp_cmd_t cmd, const char *arg, ssize_t arglen,
+                         int wait_for_ack);
 
 /**
  * Recieve a single command packet, useful for establishing a link (ACK)
  */
-ftp_err_t ftp_recv_chunk(int sockfd, ftp_chunk_t *ret, int timeout,
-                         struct sockaddr *addr, socklen_t *addrlen);
+ftp_err_t ftp_recv_chunk(ftp_chunk_t *ret, int timeout, int send_ack,
+                         struct sockaddr *out_addr, socklen_t *out_addr_len);
 
 /**
  * Print the error message for the last server error to stderr if it exists
