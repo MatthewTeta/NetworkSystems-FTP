@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
     case FTP_CMD_GET:
       printv("SERVER GET");
       // Check if the file exists
-      if (0 != access(chunk.packet, F_OK)) {
+      if (access(chunk.packet, F_OK)) {
         ftp_send_chunk(sockfd, FTP_CMD_ERROR,
                        "The specified file does not exists in the "
                        "server file system.\n",

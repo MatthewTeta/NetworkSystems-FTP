@@ -68,12 +68,10 @@ int main(int argc, char **argv) {
     error("Invalid number of arguments.\n", -1);
   }
 
-  int sockfd, portno;
-  // socklen_t          serverlen;
+  int                sockfd, portno;
   struct sockaddr_in serveraddr;
-  // struct hostent    *server;
-  char *hostname;
-  char *port;
+  char              *hostname;
+  char              *port;
 
   hostname = argv[1];
   port     = argv[2];
@@ -126,15 +124,13 @@ int main(int argc, char **argv) {
   freeaddrinfo(servinfo);
 
   // Begin an indefinite command input loop
-  char   *cmd = NULL;
-  size_t  buflen;
-  ssize_t len;
-  //   wordexp_t arglist;
-  char *opcode = NULL;
-  char *arg2   = NULL;
-  // glob_t paths;
-  // char      path[1024];
+  char     *cmd = NULL;
+  size_t    buflen;
+  ssize_t   len;
+  char     *opcode = NULL;
+  char     *arg2   = NULL;
   ftp_err_t rv;
+  FILE     *fp;
 
   // Loop forever accepting commands typed into stdin
   for (;;) {
@@ -157,14 +153,6 @@ int main(int argc, char **argv) {
         puts("Must provide a path argument to 'get' command.");
         continue;
       }
-      // TODO: Send command for get and recieve response
-      // uint8_t buf[1024];
-      // for (int i = 0; i < 1024; ++i)
-      //   buf[i] = (i / 4) & 0xFF;
-
-      // ftp_err_t rv =
-      // ftp_send_data(sockfd, buf, 1024, (struct sockaddr *)(&serveraddr),
-      //               sizeof(serveraddr));
 
       // Send GET request
       rv = ftp_send_chunk(sockfd, FTP_CMD_GET, arg2, strlen(arg2),
@@ -173,67 +161,18 @@ int main(int argc, char **argv) {
         error("Error sending GET command", -3);
       }
 
-      // TODO: Get ACK
-      // ftp_cmd_t cmd;
-      // rv = ftp_recv_chunk(sockfd, &cmd, )
-
-      // Recieve into stdout
-      rv = ftp_recv_data(sockfd, stdout, NULL, NULL);
-      if (rv != FTP_ERR_NONE) {
-        error("Error recv GET command\n", -3);
+      if (access(arg2, F_OK)) {
+        perror("A file with the specified name already exists locally.");
+        continue;
       }
 
-      // n = sendto(sockfd, arg2, strlen(arg2), 0,
-      //            (struct sockaddr *)(&serveraddr), sizeof(serveraddr));
-      // if (n < 0) {
-      //   puts("Error in sendto.");
-      //   // break;
-      // }
-      // printf("N = %d\n", n);
-      // // break;
-
-      // /* print the server's reply */
-      // serverlen = sizeof(serveraddr);
-      // printf("serverlen: %u\n", serverlen);
-      // // We are assuming only one server, so we don't really need to check
-      // the
-      // // information stored into the serveraddr
-      // while (1) {
-      //   puts("LOOP");
-      //   // Poll to allow for a timeout
-      //   short         revents = 0;
-      //   struct pollfd fds     = {
-      //           .fd      = sockfd,
-      //           .events  = POLLIN,
-      //           .revents = revents,
-      //   };
-      //   int rv = poll(&fds, 1, FTP_TIMEOUT_MS);
-      //   if (rv < 0) {
-      //     error("Polling error", -6);
-      //   } else if (rv == 0) {
-      //     puts("Timeout occured from poll");
-      //     break;
-      //   } else {
-      //     // Event happened
-      //     puts("Event happened");
-      //     if (revents & (POLLERR | POLLNVAL)) {
-      //       error("There was an error with the file descriptor when polling",
-      //             -6);
-      //     }
-      //     // There is data to be read from the pipe
-      //     bzero(buf, BUFSZ);
-      //     int nrec = recvfrom(sockfd, buf, BUFSZ, 0,
-      //                         (struct sockaddr *)(&serveraddr), &serverlen);
-      //     printf("nrec: %d\n", nrec);
-      //     if (nrec < 0)
-      //       error("ERROR in recvfrom", -5);
-      //     printf("serverlen: %u\n", serverlen);
-      //     printf("Echo from server: %s", buf);
-      //     bzero(buf, strlen(buf));
-      //     if (nrec == n)
-      //       break;
-      //   }
-      // }
+      // Recieve into a file
+      fp = fopen(arg2, "w");
+      rv = ftp_recv_data(sockfd, stdout, NULL, NULL);
+      fclose(fp);
+      if (rv != FTP_ERR_NONE && rv != FTP_ERR_SERVER) {
+        error("Error recv GET command\n", -3);
+      }
     } else if (0 == strcmp("put", opcode)) {
       printv("PUT");
       if (arg2 == NULL) {
