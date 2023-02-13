@@ -25,7 +25,7 @@ void printv(char *msg) {
  * Wrapper around perror, exit with {code}
  */
 void error(char *msg, int code) {
-    perror(msg);
+    fprintf(stderr, "%s\n", msg);
     exit(code);
 }
 
@@ -124,6 +124,8 @@ int main(int argc, char **argv) {
         // Detertmine which command got sent to the server and handle
         // synchronously (single client)
         switch (chunk.cmd) {
+
+
         case FTP_CMD_GET:
             printv("SERVER GET");
             // Check if the file exists
@@ -141,11 +143,63 @@ int main(int argc, char **argv) {
             ftp_send_data(fp);
             fclose(fp);
             break;
+
+
         case FTP_CMD_PUT:
+
+
+            printv("SERVER PUT");
+            if (!access(chunk.packet, F_OK)) {
+                ftp_send_chunk(FTP_CMD_ERROR,
+                               "A file with the specified name already exists "
+                               "on the server.\n",
+                               -1, 0);
+                continue;
+            }
+
+            // Send ACK
+            ftp_send_chunk(FTP_CMD_ACK, NULL, 0, 0);
+
+            // Recieve into a file
+            fp = fopen(chunk.packet, "w");
+            rv = ftp_recv_data(fp, NULL, NULL);
+            fclose(fp);
+            if (rv != FTP_ERR_NONE && rv != FTP_ERR_SERVER) {
+                fprintf(stderr, "Error recv PUT command\n");
+            }
             break;
+
+
         case FTP_CMD_DELETE:
+
+
+            printv("SERVER DELETE");
+            if (access(chunk.packet, F_OK)) {
+                ftp_send_chunk(
+                    FTP_CMD_ERROR,
+                    "The specified file does not exists on the server\n", -1,
+                    0);
+                continue;
+            }
+            ftp_send_chunk(FTP_CMD_ACK, NULL, 0, 0);
+            // construct the rm command using the specified file name
+            char *rm = "rm -vf ";
+            char cmd[sizeof(rm) + FTP_PACKETSIZE];
+            snprintf(cmd, sizeof(rm) + FTP_PACKETSIZE, "%s%s", rm, chunk.packet);
+            fp = popen(cmd, "r");
+            if (!fp) {
+                error("Failed to run the 'rm' command. Is it in your path?\n",
+                      -2);
+            }
+            ftp_send_data(fp);
+            if (-1 == pclose(fp))
+                error("PCLOSE ERROR\n", -2);
             break;
+
+
         case FTP_CMD_LS:;
+
+
             printv("SERVER LS");
             // SEND ACK
             ftp_send_chunk(FTP_CMD_ACK, NULL, 0, 0);
@@ -155,23 +209,14 @@ int main(int argc, char **argv) {
                 error("Failed to run the 'ls' command. Is it in your path?\n",
                       -2);
             ftp_send_data(fp);
-            // while (fgets(path, sizeof(path), fp) != NULL) {
-            //   ftp_send_data(sockfd, (uint8_t *)path, strlen(path), cliaddr,
-            //                 clientlen);
-            // }
-
-            // // Send TERM
-            // ftp_send_chunk(sockfd, FTP_CMD_TERM, NULL, 0, cliaddr,
-            // clientlen);
-
-            // printf("%s", )
             if (-1 == pclose(fp))
                 error("PCLOSE ERROR\n", -2);
-
             break;
+
+
         default:
             fprintf(stderr, "Invalid Command: 0x%02X\n", 0xFF & chunk.cmd);
-            ftp_send_chunk(FTP_CMD_ERROR, "Invalid Command (Bad Programmer)",
+            ftp_send_chunk(FTP_CMD_ERROR, "Invalid Command (Bad Programmer)\n",
                            -1, 0);
             break;
         }

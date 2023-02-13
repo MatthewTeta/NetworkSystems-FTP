@@ -25,7 +25,7 @@ void printv(char *msg) {
  * Wrapper around perror, exit with {code}
  */
 void error(char *msg, int code) {
-    perror(msg);
+    fprintf(stderr, "%s\n", msg);
     exit(code);
 }
 
@@ -51,8 +51,8 @@ int processCmdString(char *cmd, char **opcode, char **arg2) {
     return 0;
 }
 
-void printUsage() {
-    puts("Usage:\n\t./tcp_client <address> <port>");
+void printUsage(char *exe_name) {
+    printf("Usage:\n\t%s <address> <port>\n", exe_name);
     puts("\tInput commands take the following format:");
     puts("\t\tget\t<file_name>");
     puts("\t\tput\t<file_name>");
@@ -64,7 +64,7 @@ void printUsage() {
 int main(int argc, char **argv) {
     // char buf[BUFSZ];
     if (argc != 3) {
-        printUsage();
+        printUsage(argv[0]);
         error("Invalid number of arguments.\n", -1);
     }
 
@@ -145,7 +145,8 @@ int main(int argc, char **argv) {
         processCmdString(cmd, &opcode, &arg2);
 
         if (arg2 != NULL && strlen(arg2) > FTP_PACKETSIZE) {
-            perror("Filename is too long for current implementation!");
+            fprintf(stderr,
+                    "Filename is too long for current implementation!\n");
             continue;
         }
 
@@ -158,15 +159,16 @@ int main(int argc, char **argv) {
             }
 
             if (!access(arg2, F_OK)) {
-                perror(
-                    "A file with the specified name already exists locally.");
+                fprintf(
+                    stderr,
+                    "A file with the specified name already exists locally.\n");
                 continue;
             }
 
             // Send GET request
             rv = ftp_send_chunk(FTP_CMD_GET, arg2, -1, 1);
             if (rv != FTP_ERR_NONE) {
-                error("Error sending GET command", -3);
+                fprintf(stderr, "Error sending GET command\n");
                 continue;
             }
 
@@ -175,7 +177,7 @@ int main(int argc, char **argv) {
             rv = ftp_recv_data(fp, NULL, NULL);
             fclose(fp);
             if (rv != FTP_ERR_NONE && rv != FTP_ERR_SERVER) {
-                error("Error recv GET command\n", -3);
+                fprintf(stderr, "Server: Error recv GET command\n");
             }
 
         } else if (0 == strcmp("put", opcode)) {
@@ -191,8 +193,17 @@ int main(int argc, char **argv) {
                                 "server file system.\n");
                 continue;
             }
-            // Send ACK
-            ftp_send_chunk(FTP_CMD_ACK, NULL, 0, 0);
+            // Send PUT request
+            rv = ftp_send_chunk(FTP_CMD_PUT, arg2, -1, 1);
+            if (rv != FTP_ERR_NONE) {
+                if (rv == FTP_ERR_TIMEOUT) {
+                    fprintf(stderr,
+                            "Server did not respond to PUT request in time.\n");
+                } else {
+                    fprintf(stderr, "Weird error in PUT\n");
+                }
+                continue;
+            }
             // Open the file
             fp = fopen(arg2, "r");
             ftp_send_data(fp);
@@ -205,15 +216,26 @@ int main(int argc, char **argv) {
                 puts("Must provide a path argument to 'delete' command.");
                 continue;
             }
+            rv = ftp_send_chunk(FTP_CMD_DELETE, arg2, -1, 1);
+            if (rv != FTP_ERR_NONE) {
+                fprintf(stderr, "Error in DELETE ftp_send_chunk\n");
+                continue;
+            }
+
+            // Recieve the response into the stdout
+            rv = ftp_recv_data(stdout, NULL, NULL);
+            if (rv != FTP_ERR_NONE) {
+                fprintf(stderr, "Error in DELETE ftp_recv_data\n");
+                // if (rv == FTP_ERR_SERVER)
+                //   ftp_perror();
+                continue;
+            }
+
         } else if (0 == strcmp("ls", opcode)) {
             printv("LS");
             rv = ftp_send_chunk(FTP_CMD_LS, NULL, 0, 1);
             if (rv != FTP_ERR_NONE) {
                 fprintf(stderr, "Error in LS ftp_send_chunk\n");
-                // if (rv == FTP_ERR_SERVER) {
-                //   // Print the server error
-                //   ftp_perror();
-                // }
                 continue;
             }
 

@@ -129,7 +129,7 @@ ftp_err_t ftp_send_chunk(ftp_cmd_t cmd, const char *arg, ssize_t arglen,
         nsent = sendto(sockfd, (void *)((&chunk) + ntot),
                        sizeof(ftp_chunk_t) - ntot, 0, addr, addr_len);
         if (nsent < 0) {
-            perror("Error sending data in ftp_send_buf");
+            fprintf(stderr, "Error sending data in ftp_send_buf\n");
             return FTP_ERR_SOCKET;
         }
         ntot += nsent;
@@ -154,7 +154,7 @@ ftp_err_t ftp_send_chunk(ftp_cmd_t cmd, const char *arg, ssize_t arglen,
         case FTP_CMD_ACK:
             // Check that packet number is matching and return success
             // if (chunk.packet_num != ack.packet_num) {
-            //   perror("Packet numbers are out of sync!");
+            //   fprintf(stderr, "Packet numbers are out of sync!");
             //   return FTP_ERR_INVALID;
             // }
             return FTP_ERR_NONE;
@@ -194,15 +194,15 @@ ftp_err_t ftp_recv_chunk(ftp_chunk_t *ret, int timeout, int send_ack,
         };
         int poll_rv = poll(&fds, 1, timeout);
         if (poll_rv < 0) {
-            perror("Error while polling in ftp_recv_chunk");
+            fprintf(stderr, "Error while polling in ftp_recv_chunk\n");
             return FTP_ERR_POLL;
         } else if (poll_rv == 0) {
             return FTP_ERR_TIMEOUT;
         } else {
             // Event happened
             if (revents & (POLLERR | POLLNVAL)) {
-                perror(
-                    "There was an error with the file descriptor when polling");
+                fprintf(stderr, 
+                    "There was an error with the file descriptor when polling\n");
                 return FTP_ERR_POLL;
             }
             // There is data to be read from the pipe
@@ -212,7 +212,7 @@ ftp_err_t ftp_recv_chunk(ftp_chunk_t *ret, int timeout, int send_ack,
                          sizeof(ftp_chunk_t) - nrec, 0, out_addr, out_addr_len);
             // printf("n = %d\n", n);
             if (n < 0) {
-                perror("ERROR in recvfrom");
+                fprintf(stderr, "ERROR in recvfrom\n");
                 return FTP_ERR_SOCKET;
             }
             nrec += n;
