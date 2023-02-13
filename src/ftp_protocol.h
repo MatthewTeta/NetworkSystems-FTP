@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <sys/socket.h>
 
-#define FTP_PACKETSIZE 512
+#define FTP_PACKETSIZE 1024
 #define FTP_TIMEOUT_MS 3000
 
 /**

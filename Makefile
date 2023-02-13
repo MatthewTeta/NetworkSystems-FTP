@@ -16,4 +16,4 @@ ftp_server: src/ftp_server.o src/ftp_protocol.o src/util.h
 .PHONY: clean
 
 clean:
-	rm -f **/*.o *~ ftp_client ftp_server
+	rm -f **/*.o *~ client/ftp_client server/ftp_server
