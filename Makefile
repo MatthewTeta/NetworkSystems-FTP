@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Og -Wall -Wextra -I. -g -D VERBOSE
+CFLAGS=-O3 -Wall -Wextra -I.
 
 %.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS)
