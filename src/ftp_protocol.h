@@ -36,19 +36,19 @@
 typedef uint8_t ftp_cmd_t;
 
 typedef struct {
-  ftp_cmd_t cmd;
-  int32_t   nbytes;
-  char      packet[FTP_PACKETSIZE];
+    ftp_cmd_t cmd;
+    int32_t   nbytes;
+    char      packet[FTP_PACKETSIZE];
 } ftp_chunk_t;
 
 typedef enum {
-  FTP_ERR_NONE,
-  FTP_ERR_ARGS,
-  FTP_ERR_SOCKET,
-  FTP_ERR_POLL,
-  FTP_ERR_TIMEOUT,
-  FTP_ERR_INVALID,
-  FTP_ERR_SERVER,
+    FTP_ERR_NONE,
+    FTP_ERR_ARGS,
+    FTP_ERR_SOCKET,
+    FTP_ERR_POLL,
+    FTP_ERR_TIMEOUT,
+    FTP_ERR_INVALID,
+    FTP_ERR_SERVER,
 } ftp_err_t;
 
 /**
