@@ -1,11 +1,13 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "ftp_protocol.h"
@@ -15,11 +17,11 @@
 /**
  * Print a message if VERBOSE is defined
  */
-void printv(char *msg) {
-#ifdef VERBOSE
-    puts(msg);
-#endif
-}
+// void printv(char *msg) {
+// #ifdef VERBOSE
+//     puts(msg);
+// #endif
+// }
 
 /**
  * Wrapper around perror, exit with {code}
@@ -61,6 +63,14 @@ void printUsage(char *exe_name) {
     puts("\t\texit");
 }
 
+void sigint_handler(int sig) {
+    if (sig == SIGINT) {
+        // Cancel any ongoing ftp transaction
+        ftp_exit();
+    }
+    exit(-1);
+}
+
 int main(int argc, char **argv) {
     // char buf[BUFSZ];
     if (argc != 3) {
@@ -79,6 +89,9 @@ int main(int argc, char **argv) {
     if (portno == 0) {
         error("Invalid port given as argument\n", -1);
     }
+
+    // Set up the signal handler for Ctrl-C
+    signal(SIGINT, sigint_handler);
 
     /* socket: create the socket */
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -134,6 +147,8 @@ int main(int argc, char **argv) {
     char     *arg2   = NULL;
     ftp_err_t rv;
     FILE     *fp;
+    clock_t   start, end;
+    double    cpu_time_used;
 
     // Loop forever accepting commands typed into stdin
     for (;;) {
@@ -152,7 +167,7 @@ int main(int argc, char **argv) {
 
         // Parse based on opcode
         if (0 == strcmp("get", opcode)) {
-            printv("GET");
+            // printv("GET");
             if (arg2 == NULL) {
                 puts("Must provide a path argument to 'get' command.");
                 continue;
@@ -165,6 +180,7 @@ int main(int argc, char **argv) {
                 continue;
             }
 
+            start = clock();
             // Send GET request
             rv = ftp_send_chunk(FTP_CMD_GET, arg2, -1, 1);
             if (rv != FTP_ERR_NONE) {
@@ -178,11 +194,16 @@ int main(int argc, char **argv) {
             fclose(fp);
             if (rv != FTP_ERR_NONE && rv != FTP_ERR_SERVER) {
                 fprintf(stderr, "Server: Error recv GET command\n");
+                continue;
             }
+
+            end           = clock();
+            cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+            printf("GET completed successfully in %lfs\n", cpu_time_used);
 
         } else if (0 == strcmp("put", opcode)) {
 
-            printv("PUT");
+            // printv("PUT");
             if (arg2 == NULL) {
                 puts("Must provide a path argument to 'put' command.");
                 continue;
@@ -190,9 +211,11 @@ int main(int argc, char **argv) {
             // Check if the file exists
             if (access(arg2, F_OK)) {
                 fprintf(stderr, "The specified file does not exists in the "
-                                "server file system.\n");
+                                "local file system.\n");
                 continue;
             }
+
+            start = clock();
             // Send PUT request
             rv = ftp_send_chunk(FTP_CMD_PUT, arg2, -1, 1);
             if (rv != FTP_ERR_NONE) {
@@ -209,9 +232,13 @@ int main(int argc, char **argv) {
             ftp_send_data(fp);
             fclose(fp);
 
+            end           = clock();
+            cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+            printf("GET completed successfully in %lfs\n", cpu_time_used);
+
         } else if (0 == strcmp("delete", opcode)) {
 
-            printv("DELETE");
+            // printv("DELETE");
             if (arg2 == NULL) {
                 puts("Must provide a path argument to 'delete' command.");
                 continue;
@@ -232,7 +259,7 @@ int main(int argc, char **argv) {
             }
 
         } else if (0 == strcmp("ls", opcode)) {
-            printv("LS");
+            // printv("LS");
             rv = ftp_send_chunk(FTP_CMD_LS, NULL, 0, 1);
             if (rv != FTP_ERR_NONE) {
                 fprintf(stderr, "Error in LS ftp_send_chunk\n");
@@ -248,7 +275,7 @@ int main(int argc, char **argv) {
                 continue;
             }
         } else if (0 == strcmp("exit", opcode)) {
-            printv("EXIT");
+            // printv("EXIT");
             exit(0);
         } else {
             printf("Invalid command.\n");

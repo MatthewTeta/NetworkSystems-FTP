@@ -33,6 +33,7 @@
 #define FTP_CMD_ERROR  ((uint8_t)0x06)
 #define FTP_CMD_TERM   ((uint8_t)0x07)
 #define FTP_CMD_ACK    ((uint8_t)0x08)
+#define FTP_CMD_CANCEL ((uint8_t)0x09)
 typedef uint8_t ftp_cmd_t;
 
 typedef struct {
@@ -84,6 +85,11 @@ ftp_err_t ftp_send_chunk(ftp_cmd_t cmd, const char *arg, ssize_t arglen,
  */
 ftp_err_t ftp_recv_chunk(ftp_chunk_t *ret, int timeout, int send_ack,
                          struct sockaddr *out_addr, socklen_t *out_addr_len);
+
+/**
+ * Exit any ongoing transaction and leave
+ */
+void ftp_exit();
 
 /**
  * Print the error message for the last server error to stderr if it exists

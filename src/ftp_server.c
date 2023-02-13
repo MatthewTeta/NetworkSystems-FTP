@@ -15,11 +15,11 @@
 /**
  * Print a message if VERBOSE is defined
  */
-void printv(char *msg) {
-#ifdef VERBOSE
-    puts(msg);
-#endif
-}
+// void printv(char *msg) {
+// #ifdef VERBOSE
+//     puts(msg);
+// #endif
+// }
 
 /**
  * Wrapper around perror, exit with {code}
@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
 
         ftp_set_socket(sockfd, cliaddr, clientlen);
 
-        printf("SERVER RECV: %02X\n", 0xFF & chunk.cmd);
+        // printf("SERVER RECV: %02X\n", 0xFF & chunk.cmd);
 
         /*
          * gethostbyaddr: determine who sent the datagram
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
 
 
         case FTP_CMD_GET:
-            printv("SERVER GET");
+            // printv("SERVER GET");
             // Check if the file exists
             if (access(chunk.packet, F_OK)) {
                 ftp_send_chunk(FTP_CMD_ERROR,
@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
         case FTP_CMD_PUT:
 
 
-            printv("SERVER PUT");
+            // printv("SERVER PUT");
             if (!access(chunk.packet, F_OK)) {
                 ftp_send_chunk(FTP_CMD_ERROR,
                                "A file with the specified name already exists "
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
         case FTP_CMD_DELETE:
 
 
-            printv("SERVER DELETE");
+            // printv("SERVER DELETE");
             if (access(chunk.packet, F_OK)) {
                 ftp_send_chunk(
                     FTP_CMD_ERROR,
@@ -200,7 +200,7 @@ int main(int argc, char **argv) {
         case FTP_CMD_LS:;
 
 
-            printv("SERVER LS");
+            // printv("SERVER LS");
             // SEND ACK
             ftp_send_chunk(FTP_CMD_ACK, NULL, 0, 0);
             // Execute the ls command and send the stdout over the socket

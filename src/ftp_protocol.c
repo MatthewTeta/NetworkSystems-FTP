@@ -7,9 +7,10 @@
 #include "util.h"
 
 // Private Variables
-int              sockfd   = 0;
-struct sockaddr *addr     = NULL;
-socklen_t        addr_len = 0;
+int              sockfd             = 0;
+struct sockaddr *addr               = NULL;
+socklen_t        addr_len           = 0;
+int              _ftp_should_cancel = 0;
 // .text chunk for error printing
 ftp_chunk_t _ftp_error = {
     .cmd    = 0,
@@ -33,7 +34,7 @@ ftp_err_t ftp_send_data(FILE *infp) {
     char      buf[FTP_PACKETSIZE];
 
     // Fracture buf into chunks until all are sent
-    while (0 != (nread = fread(buf, 1, FTP_PACKETSIZE, infp))) {
+    while (!_ftp_should_cancel && 0 != (nread = fread(buf, 1, FTP_PACKETSIZE, infp))) {
         // printf("CHUNK: %lu\n", n_remaining);
         if (FTP_ERR_NONE != (rv = ftp_send_chunk(FTP_CMD_DATA, buf, nread, 1)))
             return rv;
@@ -59,7 +60,7 @@ ftp_err_t ftp_recv_data(FILE *outfd, struct sockaddr *out_addr,
         .cmd = FTP_CMD_DATA,
     };
 
-    while (1) {
+    while (!_ftp_should_cancel && 1) {
         // Receive chunks
         if (FTP_ERR_NONE != (rv = ftp_recv_chunk(&chunk, FTP_TIMEOUT_MS, 1,
                                                  out_addr, out_addr_len)))
@@ -112,7 +113,7 @@ ftp_err_t ftp_send_chunk(ftp_cmd_t cmd, const char *arg, ssize_t arglen,
     // Set the packet field to zero unless an argument is provided
     if (arg != NULL) {
         if (arglen == -1) {
-            strncpy(chunk.packet, arg, FTP_PACKETSIZE);
+            strcpy(chunk.packet, arg);
         } else {
             memcpy((void *)(&chunk.packet), (void *)arg, (size_t)chunk.nbytes);
         }
@@ -124,7 +125,7 @@ ftp_err_t ftp_send_chunk(ftp_cmd_t cmd, const char *arg, ssize_t arglen,
     ssize_t nsent = 0;
     size_t  ntot  = 0;
     // Keep calling sendto until the full length of the packet is transmitted
-    while (ntot != sizeof(ftp_chunk_t)) {
+    while (!_ftp_should_cancel && ntot != sizeof(ftp_chunk_t)) {
         // TODO: Convert to network byte order
         nsent = sendto(sockfd, (void *)((&chunk) + ntot),
                        sizeof(ftp_chunk_t) - ntot, 0, addr, addr_len);
@@ -184,7 +185,7 @@ ftp_err_t ftp_recv_chunk(ftp_chunk_t *ret, int timeout, int send_ack,
     // information stored into the serveraddr
 
     // Recieve packets until we have a whole chunk
-    while (nrec < sizeof(ftp_chunk_t)) {
+    while (!_ftp_should_cancel && nrec < sizeof(ftp_chunk_t)) {
         // Poll to allow for a timeout
         short         revents = 0;
         struct pollfd fds     = {
@@ -201,8 +202,8 @@ ftp_err_t ftp_recv_chunk(ftp_chunk_t *ret, int timeout, int send_ack,
         } else {
             // Event happened
             if (revents & (POLLERR | POLLNVAL)) {
-                fprintf(stderr, 
-                    "There was an error with the file descriptor when polling\n");
+                fprintf(stderr, "There was an error with the file descriptor "
+                                "when polling\n");
                 return FTP_ERR_POLL;
             }
             // There is data to be read from the pipe
@@ -225,6 +226,11 @@ ftp_err_t ftp_recv_chunk(ftp_chunk_t *ret, int timeout, int send_ack,
     }
 
     return FTP_ERR_NONE;
+}
+
+void ftp_exit() {
+    _ftp_should_cancel = 1;
+    ftp_send_chunk(FTP_CMD_CANCEL, NULL, 0, 0);
 }
 
 void ftp_perror() {
