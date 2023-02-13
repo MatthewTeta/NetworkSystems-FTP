@@ -7,10 +7,10 @@ CFLAGS=-O3 -Wall -Wextra -I.
 all: ftp_client ftp_server
 
 ftp_client: src/ftp_client.o src/ftp_protocol.o src/util.h
-	$(CC) -o client/$@ $^ $(CFLAGS)
+	mkdir -p client && $(CC) -o client/$@ $^ $(CFLAGS)
 
 ftp_server: src/ftp_server.o src/ftp_protocol.o src/util.h
-	$(CC) -o server/$@ $^ $(CFLAGS)
+	mkdir -p server && $(CC) -o server/$@ $^ $(CFLAGS)
 
 
 .PHONY: clean
